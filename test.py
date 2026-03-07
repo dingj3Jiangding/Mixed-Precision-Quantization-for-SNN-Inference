@@ -21,3 +21,14 @@ if y.item() == 1.0:
     print("\n✅ 测试成功！神经元成功发放了一个脉冲！")
 else:
     print("\n❌ 测试异常，请检查代码。")
+
+
+# for macos
+
+
+# import torch
+# device = "mps" if torch.backends.mps.is_available() else "cpu"
+# from spikingjelly.activation_based import neuron
+# print("torch:", torch.__version__)
+# print("mps:", getattr(torch.backends, "mps", None) and torch.backends.mps.is_available())
+# print("LIF:", neuron.LIFNode)
