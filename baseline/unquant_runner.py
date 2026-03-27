@@ -209,7 +209,9 @@ def run_baseline(cfg: BaselineConfig) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     metrics_csv = output_dir / "epoch_metrics.csv"
     summary_json = output_dir / "summary.json"
+    checkpoint_path = output_dir / "fp32_last.pt"
     write_epoch_metrics_csv(metrics_csv, epoch_rows)
+    torch.save(model.state_dict(), checkpoint_path)
 
     best_test_acc = max((row["test_acc"] for row in epoch_rows), default=0.0)
     summary = {
@@ -217,6 +219,7 @@ def run_baseline(cfg: BaselineConfig) -> dict:
         "device": device,
         "best_test_acc": best_test_acc,
         "final_epoch": epoch_rows[-1] if epoch_rows else None,
+        "checkpoint_path": str(checkpoint_path),
         "metrics_csv": str(metrics_csv),
         "summary_json": str(summary_json),
     }
