@@ -1,0 +1,17 @@
+{
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline/fp32_last.pt",
+  "bits_list": [
+    8,
+    4,
+    2
+  ],
+  "config": {
+    "t_steps": 16,
+    "seed": 42,
+    "max_test_batches": null
+  },
+  "comparison_csv": "outputs\\uniform_quant\\uniform_comparison.csv",
+  "summary_json": "outputs\\uniform_quant\\summary.json",
+  "best_setting": "FP32"
+}

@@ -1,0 +1,23 @@
+{
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline/fp32_last.pt",
+  "params": 2175562,
+  "target_avg_bits": 4.0,
+  "achieved_avg_bits": 2.215199929384765,
+  "bits_list": [
+    8,
+    4,
+    2
+  ],
+  "uniform_reference_bits": 4,
+  "max_hessian_batches": null,
+  "max_test_batches": null,
+  "outputs": {
+    "layer_sensitivity_csv": "outputs\\hessian_sensitivity\\layer_sensitivity.csv",
+    "bit_allocation_csv": "outputs\\hessian_sensitivity\\bit_allocation.csv",
+    "comparison_csv": "outputs\\hessian_sensitivity\\comparison.csv",
+    "ranking_figure": "outputs\\hessian_sensitivity\\sensitivity_ranking.png",
+    "summary_json": "outputs\\hessian_sensitivity\\summary.json"
+  },
+  "best_setting_by_acc": "FP32"
+}
