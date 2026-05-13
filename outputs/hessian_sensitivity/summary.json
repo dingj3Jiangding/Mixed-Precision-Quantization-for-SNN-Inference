@@ -1,23 +1,37 @@
 {
+  "method": "hutchinson_hessian_trace_mixed_precision_finetune",
   "device": "cuda",
   "checkpoint_path": "outputs/baseline/fp32_last.pt",
   "params": 2175562,
-  "target_avg_bits": 4.0,
-  "achieved_avg_bits": 2.215199929384765,
+  "target_avg_bits": null,
+  "achieved_avg_bits": 2.2104922470356314,
   "bits_list": [
     8,
     4,
     2
   ],
-  "uniform_reference_bits": 4,
-  "max_hessian_batches": null,
+  "allocation_policy": "rank-map",
+  "assigned_bits": {
+    "conv1": 8,
+    "conv2": 8,
+    "fc2": 4,
+    "fc1": 2
+  },
+  "uniform_reference_bits": 2,
+  "trace_probes": 1,
+  "max_hessian_batches": 10,
   "max_test_batches": null,
+  "quant_epochs": 1,
+  "quant_lr": 0.0001,
+  "quant_weight_decay": 0.0005,
+  "final_mixed_precision_acc": 0.1929,
   "outputs": {
-    "layer_sensitivity_csv": "outputs\\hessian_sensitivity\\layer_sensitivity.csv",
-    "bit_allocation_csv": "outputs\\hessian_sensitivity\\bit_allocation.csv",
-    "comparison_csv": "outputs\\hessian_sensitivity\\comparison.csv",
-    "ranking_figure": "outputs\\hessian_sensitivity\\sensitivity_ranking.png",
-    "summary_json": "outputs\\hessian_sensitivity\\summary.json"
+    "layer_sensitivity_csv": "outputs/hessian_sensitivity/layer_sensitivity.csv",
+    "bit_allocation_csv": "outputs/hessian_sensitivity/bit_allocation.csv",
+    "comparison_csv": "outputs/hessian_sensitivity/comparison.csv",
+    "quant_finetune_epoch_metrics_csv": "outputs/hessian_sensitivity/quant_finetune_epoch_metrics.csv",
+    "ranking_figure": "outputs/hessian_sensitivity/sensitivity_ranking.png",
+    "summary_json": "outputs/hessian_sensitivity/summary.json"
   },
   "best_setting_by_acc": "FP32"
 }

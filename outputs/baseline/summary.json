@@ -6,7 +6,7 @@
     "batch_size_train": 128,
     "batch_size_test": 256,
     "num_workers": 4,
-    "epochs": 15,
+    "epochs": 20,
     "t_steps": 16,
     "lr": 0.001,
     "weight_decay": 0.0005,
@@ -17,22 +17,22 @@
     "max_test_batches": null
   },
   "device": "cuda",
-  "best_test_acc": 0.7777,
+  "best_test_acc": 0.7876,
   "final_epoch": {
-    "epoch": 15,
+    "epoch": 20,
     "lr": 0.001,
-    "train_loss": 0.6095873685073853,
-    "train_acc": 0.78688,
-    "test_loss": 0.6760654110908508,
-    "test_acc": 0.7645,
-    "spike_rate": 0.056792164607853086,
-    "avg_batch_infer_ms": 1615.6580099999928,
+    "train_loss": 0.5396958489608764,
+    "train_acc": 0.81194,
+    "test_loss": 0.6099982502937317,
+    "test_acc": 0.7876,
+    "spike_rate": 0.05727362761262175,
+    "avg_batch_infer_ms": 38.715748675053874,
     "params": 2175562,
     "model_size_mb": 8.299110412597656,
     "synapse_count_proxy": 2175168,
-    "sop_proxy": 1976519.9856917532
+    "sop_proxy": 1993276.1924302597
   },
-  "checkpoint_path": "outputs\\baseline\\fp32_last.pt",
-  "metrics_csv": "outputs\\baseline\\epoch_metrics.csv",
-  "summary_json": "outputs\\baseline\\summary.json"
+  "checkpoint_path": "outputs/baseline/fp32_last.pt",
+  "metrics_csv": "outputs/baseline/epoch_metrics.csv",
+  "summary_json": "outputs/baseline/summary.json"
 }
