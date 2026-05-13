@@ -1,0 +1,7 @@
+state_layer_name,state_cost_proxy,state_rank,assigned_state_bits
+features.2,1048576.0,1,4
+features.5,1048576.0,2,4
+features.9,524288.0,3,4
+features.12,524288.0,4,8
+features.16,262144.0,5,8
+features.19,262144.0,6,8
