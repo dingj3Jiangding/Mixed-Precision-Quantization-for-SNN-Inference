@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import csv
 import json
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -133,6 +134,29 @@ def assign_state_bits_by_cost(
     for row in state_rows:
         row["assigned_state_bits"] = int(state_bits[row["state_layer_name"]])
     return state_bits, avg_state_bits
+
+
+def load_weight_allocation_rows(weight_allocation_csv: str) -> List[dict]:
+    path = Path(weight_allocation_csv)
+    if not path.exists():
+        raise FileNotFoundError(f"Weight allocation CSV not found: {path}")
+    with path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows: List[dict] = []
+        for row in reader:
+            rows.append(
+                {
+                    "layer_name": row["layer_name"],
+                    "assigned_bits": int(row["assigned_bits"]),
+                    "params": int(row["params"]),
+                    "hessian_trace": float(row.get("hessian_trace", 0.0)),
+                    "trace_density": float(row.get("trace_density", 0.0)),
+                    "rank": int(row.get("rank", len(rows) + 1)),
+                }
+            )
+    if not rows:
+        raise RuntimeError(f"No rows were found in weight allocation CSV: {path}")
+    return rows
 
 
 class _StateInputQuantizer:
@@ -271,6 +295,7 @@ def run_weight_state_mixed_analysis(
     checkpoint_path: str,
     weight_bits_list: Iterable[int],
     state_bits_list: Optional[Iterable[int]] = None,
+    weight_allocation_csv: Optional[str] = None,
     target_avg_weight_bits: Optional[float] = None,
     output_dir: str = "outputs/baseline_full_weight_state_mixed",
     max_hessian_batches: Optional[int] = None,
@@ -291,22 +316,27 @@ def run_weight_state_mixed_analysis(
     fp32_model = build_model(num_classes=10).to(device)
     _load_checkpoint(fp32_model, checkpoint_path=checkpoint_path)
 
-    weight_rows = estimate_layer_sensitivity(
-        model=fp32_model,
-        loader=train_loader,
-        device=device,
-        t_steps=cfg.t_steps,
-        max_batches=max_hessian_batches,
-        trace_probes=trace_probes,
-    )
+    if weight_allocation_csv is not None:
+        weight_rows = load_weight_allocation_rows(weight_allocation_csv)
+        weight_bits = {row["layer_name"]: int(row["assigned_bits"]) for row in weight_rows}
+        achieved_avg_weight_bits = _weighted_average_bits(weight_rows, weight_bits)
+    else:
+        weight_rows = estimate_layer_sensitivity(
+            model=fp32_model,
+            loader=train_loader,
+            device=device,
+            t_steps=cfg.t_steps,
+            max_batches=max_hessian_batches,
+            trace_probes=trace_probes,
+        )
 
-    from .hessian import assign_bits_by_sensitivity_rank
+        from .hessian import assign_bits_by_sensitivity_rank
 
-    weight_bits, achieved_avg_weight_bits = assign_bits_by_sensitivity_rank(
-        layer_rows=weight_rows,
-        bits_list=weight_bits_list,
-        policy=allocation_policy,
-    )
+        weight_bits, achieved_avg_weight_bits = assign_bits_by_sensitivity_rank(
+            layer_rows=weight_rows,
+            bits_list=weight_bits_list,
+            policy=allocation_policy,
+        )
 
     state_rows = estimate_state_cost_proxy(
         model=fp32_model,
@@ -448,6 +478,7 @@ def run_weight_state_mixed_analysis(
         "weight_bits_list": parse_bits_list(weight_bits_list),
         "state_bits_list": parse_bits_list(state_bits_list),
         "allocation_policy": allocation_policy,
+        "weight_allocation_csv": weight_allocation_csv,
         "assigned_weight_bits": weight_bits,
         "assigned_state_bits": state_bits,
         "uniform_reference_bits": uniform_ref_bits,

@@ -32,6 +32,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="outputs/baseline_full_weight_state_mixed")
     parser.add_argument("--weight-bits", default="8,4")
     parser.add_argument("--state-bits", default="8,4")
+    parser.add_argument(
+        "--weight-allocation-csv",
+        default=None,
+        help=(
+            "Optional existing Hessian weight allocation CSV. "
+            "If provided, skips Hessian sensitivity recomputation for weights."
+        ),
+    )
     parser.add_argument("--target-avg-weight-bits", type=float, default=None)
     parser.add_argument("--t-steps", type=int, default=16)
     parser.add_argument("--batch-size-train", type=int, default=128)
@@ -79,6 +87,7 @@ def main() -> None:
         checkpoint_path=args.checkpoint_path,
         weight_bits_list=weight_bits_list,
         state_bits_list=state_bits_list,
+        weight_allocation_csv=args.weight_allocation_csv,
         target_avg_weight_bits=args.target_avg_weight_bits,
         output_dir=args.output_dir,
         max_hessian_batches=_none_if_non_positive(args.max_hessian_batches),

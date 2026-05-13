@@ -22,6 +22,15 @@ python scripts/run_weight_state_mixed_full.py \
   --device cuda
 ```
 
+如果你已经跑过 `baseline_full` 的 Hessian-only 结果，推荐直接复用权重位宽分配，跳过最耗显存的 Hessian 二阶梯度：
+```bash
+python scripts/run_weight_state_mixed_full.py \
+  --checkpoint-path outputs/baseline_full/fp32_last.pt \
+  --weight-allocation-csv outputs/baseline_full_hessian_sensitivity/bit_allocation.csv \
+  --state-bits 8,4 \
+  --device cuda
+```
+
 ## 输出文件
 - `outputs/baseline_full_weight_state_mixed/weight_bit_allocation.csv`
 - `outputs/baseline_full_weight_state_mixed/state_bit_allocation.csv`

@@ -13,9 +13,19 @@ python scripts/run_weight_state_mixed_full.py \
   --device cuda
 ```
 
+如果已有 `outputs/baseline_full_hessian_sensitivity/bit_allocation.csv`，推荐：
+```bash
+python scripts/run_weight_state_mixed_full.py \
+  --checkpoint-path outputs/baseline_full/fp32_last.pt \
+  --weight-allocation-csv outputs/baseline_full_hessian_sensitivity/bit_allocation.csv \
+  --state-bits 8,4 \
+  --device cuda
+```
+
 ## 关键参数
 - `--weight-bits`：候选权重位宽集合。
 - `--state-bits`：候选 state 位宽集合。
+- `--weight-allocation-csv`：复用已有 Hessian-only 权重分配结果，避免重新跑最耗显存的二阶梯度。
 - `--max-hessian-batches`：Hessian ranking 使用的训练 batch 数。
 - `--quant-epochs`：joint mixed-precision fine-tuning 轮数。
 
