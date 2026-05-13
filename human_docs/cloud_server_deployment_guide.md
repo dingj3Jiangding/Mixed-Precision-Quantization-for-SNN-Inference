@@ -54,6 +54,115 @@ nvidia-smi
 
 ## 3. 上传项目代码
 
+如果仓库是私有仓库，建议先配置 Git SSH 私钥；如果你用 `scp` 上传代码，可以跳过本节。
+
+### 3.1 配置 Git SSH 私钥
+
+在服务器上生成 SSH key：
+
+```bash
+ssh-keygen -t ed25519 -C "your_email@example.com"
+```
+
+一路回车即可。默认会生成：
+
+```text
+~/.ssh/id_ed25519
+~/.ssh/id_ed25519.pub
+```
+
+启动 ssh-agent 并添加私钥：
+
+```bash
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+查看公钥：
+
+```bash
+cat ~/.ssh/id_ed25519.pub
+```
+
+复制输出内容，然后添加到 GitHub / GitLab：
+
+```text
+GitHub:
+Settings -> SSH and GPG keys -> New SSH key
+
+GitLab:
+Preferences -> SSH Keys -> Add new key
+```
+
+测试连接：
+
+```bash
+ssh -T git@github.com
+```
+
+如果看到类似：
+
+```text
+Hi 用户名! You've successfully authenticated...
+```
+
+说明 SSH key 配置成功。
+
+如果你用 GitLab：
+
+```bash
+ssh -T git@gitlab.com
+```
+
+首次连接时可能会问：
+
+```text
+Are you sure you want to continue connecting?
+```
+
+输入：
+
+```bash
+yes
+```
+
+### 3.2 使用已有私钥
+
+如果你已经有本地私钥，也可以把私钥复制到服务器：
+
+```bash
+mkdir -p ~/.ssh
+nano ~/.ssh/id_ed25519
+```
+
+把私钥内容粘贴进去后保存，然后设置权限：
+
+```bash
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/id_ed25519
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+```
+
+注意：私钥内容应类似：
+
+```text
+-----BEGIN OPENSSH PRIVATE KEY-----
+...
+-----END OPENSSH PRIVATE KEY-----
+```
+
+不要把私钥提交到 Git 仓库，也不要发给别人。
+
+### 3.3 配置 Git 用户信息
+
+如果后面要在服务器上 commit：
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your_email@example.com"
+```
+
 ### 方式 A：用 Git
 
 如果你的项目已经上传到 GitHub / GitLab：
@@ -400,4 +509,3 @@ python scripts/run_hessian_sensitivity.py \
   --quant-epochs 1 \
   --allocation-policy rank-map
 ```
-

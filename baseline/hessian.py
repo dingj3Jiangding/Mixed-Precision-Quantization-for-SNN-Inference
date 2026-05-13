@@ -380,6 +380,12 @@ def run_hessian_sensitivity_analysis(
         policy=allocation_policy,
     )
 
+    # # [hardcode fc1 to 4 bit]
+    # layer_bits["fc1"] = 4
+    # for row in layer_rows:
+    #     if row["layer_name"] == "fc1":
+    #         row["assigned_bits"] = 4 
+
     criterion = nn.CrossEntropyLoss()
     eval_limit = max_test_batches if max_test_batches is not None else cfg.max_test_batches
 
