@@ -148,66 +148,6 @@ def estimate_layer_sensitivity(
     return rows
 
 
-@torch.no_grad()
-def estimate_layer_state_cost(
-    model: nn.Module,
-    loader,
-    device: str,
-    t_steps: int,
-    max_batches: Optional[int],
-) -> Dict[str, float]:
-    weight_layers = _collect_weight_layers(model)
-    if not weight_layers:
-        raise RuntimeError("No quantizable Conv/Linear layers were found.")
-
-    state_acc: Dict[str, float] = {name: 0.0 for name, _ in weight_layers}
-    state_count: Dict[str, int] = {name: 0 for name, _ in weight_layers}
-    handles: List[torch.utils.hooks.RemovableHandle] = []
-
-    def make_hook(layer_name: str):
-        def hook(_module: nn.Module, _inputs, output) -> None:
-            out = output[0] if isinstance(output, (tuple, list)) else output
-            if not torch.is_tensor(out) or out.ndim < 2:
-                return
-            batch_size = int(out.shape[1]) if out.ndim >= 3 else int(out.shape[0])
-            if batch_size <= 0:
-                return
-            state_acc[layer_name] += float(out.numel()) / float(batch_size)
-            state_count[layer_name] += 1
-
-        return hook
-
-    for name, module in weight_layers:
-        handles.append(module.register_forward_hook(make_hook(name)))
-
-    try:
-        model.eval()
-        batch_count = 0
-        for x, _y in _iter_with_limit(loader, max_batches):
-            x = x.to(device)
-            x_seq = direct_encode(x, t_steps)
-            model(x_seq)
-            batch_count += 1
-            functional.reset_net(model)
-        if batch_count == 0:
-            raise RuntimeError("No batches were processed for state-cost estimation.")
-    finally:
-        for handle in handles:
-            handle.remove()
-
-    return {
-        name: state_acc[name] / float(max(state_count[name], 1))
-        for name, _module in weight_layers
-    }
-
-
-def _normalize_by_max(rows: List[dict], key: str, output_key: str) -> None:
-    max_value = max((abs(float(row.get(key, 0.0))) for row in rows), default=0.0)
-    for row in rows:
-        value = abs(float(row.get(key, 0.0)))
-        row[output_key] = value / max_value if max_value > 0.0 else 0.0
-
-
 def _weighted_average_bits(layer_rows: List[dict], layer_bits: Dict[str, int]) -> float:
     total_params = sum(int(row["params"]) for row in layer_rows)
     if total_params <= 0:
@@ -215,53 +155,6 @@ def _weighted_average_bits(layer_rows: List[dict], layer_bits: Dict[str, int]) -
     return sum(
         int(row["params"]) * int(layer_bits[row["layer_name"]]) for row in layer_rows
     ) / float(total_params)
-
-
-def assign_bits_by_state_aware_score(
-    layer_rows: List[dict],
-    bits_list: Iterable[int],
-    alpha: float = 0.75,
-    policy: str = "rank-map",
-) -> Tuple[Dict[str, int], float]:
-    if not 0.0 <= alpha <= 1.0:
-        raise ValueError("state-aware alpha must be in [0, 1].")
-    bits = parse_bits_list(bits_list)
-    if policy not in {"rank-map", "tiered"}:
-        raise ValueError("allocation policy must be either 'rank-map' or 'tiered'.")
-    if not layer_rows:
-        raise RuntimeError("No layer sensitivity rows were provided.")
-
-    _normalize_by_max(layer_rows, "hessian_trace", "hessian_norm")
-    _normalize_by_max(layer_rows, "state_cost_proxy", "state_cost_norm")
-    for row in layer_rows:
-        row["state_aware_score"] = (
-            alpha * float(row["hessian_norm"])
-            + (1.0 - alpha) * float(row["state_cost_norm"])
-        )
-
-    rows = sorted(layer_rows, key=lambda item: item["state_aware_score"], reverse=True)
-    layer_count = len(rows)
-    layer_bits: Dict[str, int] = {}
-
-    if policy == "rank-map":
-        for idx, row in enumerate(rows):
-            bit_idx = min((idx * len(bits)) // layer_count, len(bits) - 1)
-            layer_bits[row["layer_name"]] = bits[bit_idx]
-    else:
-        for idx, row in enumerate(rows):
-            percentile = idx / max(layer_count - 1, 1)
-            if percentile <= 1.0 / 3.0:
-                bit = bits[0]
-            elif percentile >= 2.0 / 3.0:
-                bit = bits[-1]
-            else:
-                bit = bits[len(bits) // 2]
-            layer_bits[row["layer_name"]] = bit
-
-    for rank, row in enumerate(rows, start=1):
-        row["state_aware_rank"] = rank
-        row["state_aware_assigned_bits"] = int(layer_bits[row["layer_name"]])
-    return layer_bits, float(_weighted_average_bits(layer_rows, layer_bits))
 
 
 def assign_bits_by_sensitivity_rank(
@@ -469,7 +362,6 @@ def run_hessian_sensitivity_analysis(
     quant_lr: float = 1e-4,
     quant_weight_decay: float = 5e-4,
     allocation_policy: str = "rank-map",
-    state_aware_alpha: float = 0.75,
 ) -> dict:
     set_global_seed(cfg.seed, cfg.deterministic)
     device = cfg.resolve_device()
@@ -491,26 +383,6 @@ def run_hessian_sensitivity_analysis(
         bits_list=bits_list,
         policy=allocation_policy,
     )
-    hessian_layer_bits = dict(layer_bits)
-    for row in layer_rows:
-        row["hessian_assigned_bits"] = int(hessian_layer_bits[row["layer_name"]])
-
-    state_cost = estimate_layer_state_cost(
-        model=fp32_model,
-        loader=train_loader,
-        device=device,
-        t_steps=cfg.t_steps,
-        max_batches=max_hessian_batches,
-    )
-    for row in layer_rows:
-        row["state_cost_proxy"] = float(state_cost.get(row["layer_name"], 0.0))
-    state_aware_layer_bits, state_aware_avg_bits = assign_bits_by_state_aware_score(
-        layer_rows=layer_rows,
-        bits_list=bits_list,
-        alpha=state_aware_alpha,
-        policy=allocation_policy,
-    )
-    layer_rows.sort(key=lambda item: item["hessian_trace"], reverse=True)
 
     criterion = nn.CrossEntropyLoss()
     eval_limit = max_test_batches if max_test_batches is not None else cfg.max_test_batches
@@ -542,12 +414,12 @@ def run_hessian_sensitivity_analysis(
     params = parameter_count(fp32_model)
 
     mixed_model = copy.deepcopy(fp32_model).to(device)
-    _apply_layer_weight_quantization_(mixed_model, hessian_layer_bits)
-    hessian_epoch_rows = finetune_mixed_precision_model(
+    _apply_layer_weight_quantization_(mixed_model, layer_bits)
+    epoch_rows = finetune_mixed_precision_model(
         model=mixed_model,
         train_loader=train_loader,
         test_loader=test_loader,
-        layer_bits=hessian_layer_bits,
+        layer_bits=layer_bits,
         criterion=criterion,
         device=device,
         t_steps=cfg.t_steps,
@@ -558,36 +430,9 @@ def run_hessian_sensitivity_analysis(
         max_test_batches=eval_limit,
         synapse_count=synapse_count,
     )
-    _apply_layer_weight_quantization_(mixed_model, hessian_layer_bits)
-    hessian_mixed_metrics = evaluate(
+    _apply_layer_weight_quantization_(mixed_model, layer_bits)
+    mixed_metrics = evaluate(
         model=mixed_model,
-        loader=test_loader,
-        criterion=criterion,
-        device=device,
-        t_steps=cfg.t_steps,
-        max_batches=eval_limit,
-    )
-
-    state_aware_model = copy.deepcopy(fp32_model).to(device)
-    _apply_layer_weight_quantization_(state_aware_model, state_aware_layer_bits)
-    state_aware_epoch_rows = finetune_mixed_precision_model(
-        model=state_aware_model,
-        train_loader=train_loader,
-        test_loader=test_loader,
-        layer_bits=state_aware_layer_bits,
-        criterion=criterion,
-        device=device,
-        t_steps=cfg.t_steps,
-        epochs=quant_epochs,
-        lr=quant_lr,
-        weight_decay=quant_weight_decay,
-        max_train_batches=cfg.max_train_batches,
-        max_test_batches=eval_limit,
-        synapse_count=synapse_count,
-    )
-    _apply_layer_weight_quantization_(state_aware_model, state_aware_layer_bits)
-    state_aware_metrics = evaluate(
-        model=state_aware_model,
         loader=test_loader,
         criterion=criterion,
         device=device,
@@ -614,23 +459,11 @@ def run_hessian_sensitivity_analysis(
         },
         {
             "setting": "HessianMixed",
-            "test_acc": hessian_mixed_metrics["test_acc"],
-            "spike_rate": hessian_mixed_metrics["spike_rate"],
-            "avg_batch_infer_ms": hessian_mixed_metrics["avg_batch_infer_ms"],
-            "sop_proxy": sop_proxy(
-                hessian_mixed_metrics["spike_rate"], synapse_count, cfg.t_steps
-            ),
+            "test_acc": mixed_metrics["test_acc"],
+            "spike_rate": mixed_metrics["spike_rate"],
+            "avg_batch_infer_ms": mixed_metrics["avg_batch_infer_ms"],
+            "sop_proxy": sop_proxy(mixed_metrics["spike_rate"], synapse_count, cfg.t_steps),
             "avg_weight_bits": achieved_avg_bits,
-        },
-        {
-            "setting": f"StateAwareHessianMixed_a{state_aware_alpha:g}",
-            "test_acc": state_aware_metrics["test_acc"],
-            "spike_rate": state_aware_metrics["spike_rate"],
-            "avg_batch_infer_ms": state_aware_metrics["avg_batch_infer_ms"],
-            "sop_proxy": sop_proxy(
-                state_aware_metrics["spike_rate"], synapse_count, cfg.t_steps
-            ),
-            "avg_weight_bits": state_aware_avg_bits,
         },
     ]
 
@@ -638,10 +471,8 @@ def run_hessian_sensitivity_analysis(
     output_path.mkdir(parents=True, exist_ok=True)
     sensitivity_csv = output_path / "layer_sensitivity.csv"
     allocation_csv = output_path / "bit_allocation.csv"
-    state_aware_allocation_csv = output_path / "state_aware_bit_allocation.csv"
     comparison_csv = output_path / "comparison.csv"
-    quant_epoch_csv = output_path / "hessian_quant_finetune_epoch_metrics.csv"
-    state_aware_quant_epoch_csv = output_path / "state_aware_quant_finetune_epoch_metrics.csv"
+    quant_epoch_csv = output_path / "quant_finetune_epoch_metrics.csv"
     summary_json = output_path / "summary.json"
     ranking_figure = output_path / "sensitivity_ranking.png"
 
@@ -651,56 +482,29 @@ def run_hessian_sensitivity_analysis(
         [
             {
                 "layer_name": row["layer_name"],
-                "assigned_bits": row["hessian_assigned_bits"],
+                "assigned_bits": row["assigned_bits"],
                 "params": row["params"],
                 "hessian_trace": row["hessian_trace"],
                 "trace_density": row["trace_density"],
                 "rank": row["rank"],
-                "state_cost_proxy": row["state_cost_proxy"],
-                "hessian_norm": row["hessian_norm"],
-                "state_cost_norm": row["state_cost_norm"],
             }
             for row in layer_rows
         ],
     )
-    _write_csv(
-        state_aware_allocation_csv,
-        [
-            {
-                "layer_name": row["layer_name"],
-                "assigned_bits": row["state_aware_assigned_bits"],
-                "params": row["params"],
-                "hessian_trace": row["hessian_trace"],
-                "trace_density": row["trace_density"],
-                "state_cost_proxy": row["state_cost_proxy"],
-                "hessian_norm": row["hessian_norm"],
-                "state_cost_norm": row["state_cost_norm"],
-                "state_aware_score": row["state_aware_score"],
-                "state_aware_rank": row["state_aware_rank"],
-                "hessian_rank": row["rank"],
-                "state_aware_alpha": state_aware_alpha,
-            }
-            for row in sorted(layer_rows, key=lambda item: item["state_aware_rank"])
-        ],
-    )
     _write_csv(comparison_csv, comparison_rows)
-    write_epoch_metrics_csv(quant_epoch_csv, hessian_epoch_rows)
-    write_epoch_metrics_csv(state_aware_quant_epoch_csv, state_aware_epoch_rows)
+    write_epoch_metrics_csv(quant_epoch_csv, epoch_rows)
     figure_path = _try_plot_sensitivity(layer_rows, ranking_figure)
 
     summary = {
-        "method": "state_aware_hutchinson_hessian_trace_mixed_precision_finetune",
+        "method": "hutchinson_hessian_trace_mixed_precision_finetune",
         "device": device,
         "checkpoint_path": checkpoint_path,
         "params": params,
         "target_avg_bits": target_avg_bits,
         "achieved_avg_bits": achieved_avg_bits,
-        "state_aware_avg_bits": state_aware_avg_bits,
         "bits_list": bits_sorted,
         "allocation_policy": allocation_policy,
-        "state_aware_alpha": state_aware_alpha,
-        "assigned_bits": hessian_layer_bits,
-        "state_aware_assigned_bits": state_aware_layer_bits,
+        "assigned_bits": layer_bits,
         "uniform_reference_bits": uniform_ref_bits,
         "trace_probes": trace_probes,
         "max_hessian_batches": max_hessian_batches,
@@ -708,17 +512,12 @@ def run_hessian_sensitivity_analysis(
         "quant_epochs": quant_epochs,
         "quant_lr": quant_lr,
         "quant_weight_decay": quant_weight_decay,
-        "final_mixed_precision_acc": hessian_mixed_metrics["test_acc"],
-        "final_state_aware_mixed_precision_acc": state_aware_metrics["test_acc"],
+        "final_mixed_precision_acc": mixed_metrics["test_acc"],
         "outputs": {
             "layer_sensitivity_csv": str(sensitivity_csv),
             "bit_allocation_csv": str(allocation_csv),
-            "state_aware_bit_allocation_csv": str(state_aware_allocation_csv),
             "comparison_csv": str(comparison_csv),
             "quant_finetune_epoch_metrics_csv": str(quant_epoch_csv),
-            "state_aware_quant_finetune_epoch_metrics_csv": str(
-                state_aware_quant_epoch_csv
-            ),
             "ranking_figure": figure_path,
             "summary_json": str(summary_json),
         },

@@ -147,21 +147,15 @@
 ---
 
 ## 当前代码实现状态
-当前第一版 state-aware 方法已经在 `baseline_full/hessian.py` 中实现。
+当前先不把 state-aware 方法接入 `baseline_full/hessian.py` 主流程。
 
-### 已实现内容
+原因是需要先验证无 state-aware 的 `baseline_full` Hessian mixed-precision 结果，建立干净对照组。等该结果稳定后，再接入 state-aware 方法做增量比较。
+
+### 当前已实现内容
 - Hessian-only mixed precision：
   - 使用 Hutchinson Hessian trace 对 Conv/Linear 层排序。
   - 根据排序做 layer-wise bit allocation。
-- State-aware Hessian mixed precision：
-  - 对每个 Conv/Linear 层通过 forward hook 估计 `state_cost_proxy`。
-  - 对 `hessian_trace` 和 `state_cost_proxy` 分别做 max-normalization。
-  - 使用加权分数：
-    - `state_aware_score = alpha * hessian_norm + (1 - alpha) * state_cost_norm`
-  - 根据 `state_aware_score` 排序并分配 bit-width。
-- 输出中同时包含：
-  - `HessianMixed`
-  - `StateAwareHessianMixed`
+  - 输出 `FP32 / Uniform / HessianMixed` 对比。
 
 ### 运行命令
 ```bash
@@ -171,21 +165,25 @@ python scripts/run_hessian_sensitivity_full.py \
   --device cuda \
   --max-hessian-batches 10 \
   --trace-probes 1 \
-  --quant-epochs 1 \
-  --state-aware-alpha 0.75
+  --quant-epochs 1
 ```
 
 ### 主要输出文件
 - `outputs/baseline_full_hessian_sensitivity/layer_sensitivity.csv`
 - `outputs/baseline_full_hessian_sensitivity/bit_allocation.csv`
-- `outputs/baseline_full_hessian_sensitivity/state_aware_bit_allocation.csv`
 - `outputs/baseline_full_hessian_sensitivity/comparison.csv`
 - `outputs/baseline_full_hessian_sensitivity/summary.json`
 
-### 当前实现边界
-- 当前版本仍是 weight-side quantization，没有真正量化膜电位或神经元 state。
-- `state_cost_proxy` 是 activation/state volume proxy，不是硬件实测内存访问。
-- 这是一个最小可解释版本，适合作为论文创新点的第一版实验实现。
+### 待接入内容
+- 在 Hessian-only 结果稳定后，再加入 State-aware Hessian mixed precision：
+  - 对每个 Conv/Linear 层通过 forward hook 估计 `state_cost_proxy`。
+  - 对 `hessian_trace` 和 `state_cost_proxy` 分别做 max-normalization。
+  - 使用加权分数：
+    - `state_aware_score = alpha * hessian_norm + (1 - alpha) * state_cost_norm`
+  - 根据 `state_aware_score` 排序并分配 bit-width。
+- 接入后应新增输出：
+  - `StateAwareHessianMixed`
+  - `state_aware_bit_allocation.csv`
 
 ---
 
