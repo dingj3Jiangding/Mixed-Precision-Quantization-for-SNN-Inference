@@ -44,6 +44,23 @@
 2. 再加入一个简化版 state quantization experiment
 3. 最后才尝试完整 joint weight+state mixed precision
 
+### 当前仓库中的最小实现版本
+当前可以在本仓库中落地的版本，是一个**简化版 Weight + State Mixed Precision experiment**：
+- weight 侧：
+  - 仍按 Hessian trace 做 layer-wise mixed precision。
+- state 侧：
+  - 不直接改 SpikingJelly 神经元内部膜电位更新逻辑。
+  - 改为量化每个 `LIFNode` 的连续输入电流，作为低精度 state update 的近似实现。
+
+这样做的优点：
+- 能跑通独立实验链。
+- 有明确的 weight bits / state bits 输出。
+- 不需要侵入式重写 neuron 内部实现。
+
+这样做的边界：
+- 严格来说，它是 **state quantization proxy experiment**，不是完整的内部膜电位量化实现。
+- 论文里应明确表述为“简化版 joint weight-state quantization experiment”。
+
 ---
 
 ## 方向 C：SNN-Aware Hessian Allocation Metric
