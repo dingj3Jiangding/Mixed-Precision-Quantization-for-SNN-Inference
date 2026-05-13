@@ -1,0 +1,40 @@
+{
+  "method": "state_aware_hutchinson_hessian_trace_mixed_precision_finetune",
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_full/fp32_last.pt",
+  "params": 1148874,
+  "target_avg_bits": null,
+  "achieved_avg_bits": 4.905875132511298,
+  "bits_list": [
+    8,
+    4
+  ],
+  "allocation_policy": "rank-map",
+  "state_aware_alpha": 0.75,
+  "assigned_bits": {
+    "features.0": 8,
+    "features.3": 8,
+    "features.7": 8,
+    "features.10": 8,
+    "features.17": 4,
+    "features.14": 4,
+    "classifier": 4
+  },
+  "uniform_reference_bits": 4,
+  "trace_probes": 1,
+  "max_hessian_batches": 2,
+  "max_test_batches": 10,
+  "quant_epochs": 1,
+  "quant_lr": 0.0001,
+  "quant_weight_decay": 0.0005,
+  "final_mixed_precision_acc": 0.78125,
+  "outputs": {
+    "layer_sensitivity_csv": "outputs/baseline_full_state_aware_hessian/layer_sensitivity.csv",
+    "state_aware_bit_allocation_csv": "outputs/baseline_full_state_aware_hessian/state_aware_bit_allocation.csv",
+    "comparison_csv": "outputs/baseline_full_state_aware_hessian/comparison.csv",
+    "state_aware_quant_finetune_epoch_metrics_csv": "outputs/baseline_full_state_aware_hessian/state_aware_quant_finetune_epoch_metrics.csv",
+    "ranking_figure": "outputs/baseline_full_state_aware_hessian/sensitivity_ranking.png",
+    "summary_json": "outputs/baseline_full_state_aware_hessian/summary.json"
+  },
+  "best_setting_by_acc": "FP32"
+}
