@@ -4,27 +4,26 @@
   "checkpoint_path": "outputs/baseline/fp32_last.pt",
   "params": 2175562,
   "target_avg_bits": null,
-  "achieved_avg_bits": 2.2104922470356314,
+  "achieved_avg_bits": 4.13875893724071,
   "bits_list": [
     8,
-    4,
-    2
+    4
   ],
   "allocation_policy": "rank-map",
   "assigned_bits": {
     "conv1": 8,
     "conv2": 8,
     "fc2": 4,
-    "fc1": 2
+    "fc1": 4
   },
-  "uniform_reference_bits": 2,
+  "uniform_reference_bits": 4,
   "trace_probes": 1,
   "max_hessian_batches": 10,
   "max_test_batches": null,
   "quant_epochs": 1,
   "quant_lr": 0.0001,
   "quant_weight_decay": 0.0005,
-  "final_mixed_precision_acc": 0.1929,
+  "final_mixed_precision_acc": 0.7978,
   "outputs": {
     "layer_sensitivity_csv": "outputs/hessian_sensitivity/layer_sensitivity.csv",
     "bit_allocation_csv": "outputs/hessian_sensitivity/bit_allocation.csv",
@@ -33,5 +32,5 @@
     "ranking_figure": "outputs/hessian_sensitivity/sensitivity_ranking.png",
     "summary_json": "outputs/hessian_sensitivity/summary.json"
   },
-  "best_setting_by_acc": "FP32"
+  "best_setting_by_acc": "HessianMixed"
 }
