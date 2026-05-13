@@ -1,13 +1,23 @@
-# save as: scripts/plot_baseline_graphs.py
+import argparse
 from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Plot baseline training curves from epoch metrics.")
+    parser.add_argument("--metrics-csv", default="outputs/baseline/epoch_metrics.csv")
+    parser.add_argument("--output-dir", default="outputs/baseline/figures")
+    return parser.parse_args()
+
+
 def main():
-    csv_path = Path("outputs/baseline/epoch_metrics.csv")
-    out_dir = Path("outputs/baseline/figures")
+    args = parse_args()
+    csv_path = Path(args.metrics_csv)
+    out_dir = Path(args.output_dir)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Metrics CSV not found: {csv_path}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(csv_path)

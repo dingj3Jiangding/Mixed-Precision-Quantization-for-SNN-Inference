@@ -54,6 +54,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--quant-lr", type=float, default=1e-4)
     parser.add_argument("--quant-weight-decay", type=float, default=5e-4)
     parser.add_argument("--allocation-policy", choices=["rank-map", "tiered"], default="rank-map")
+    parser.add_argument(
+        "--state-aware-alpha",
+        type=float,
+        default=0.75,
+        help=(
+            "Weight for Hessian sensitivity in state-aware score. "
+            "1.0 is Hessian-only; lower values give more weight to state cost."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -91,6 +100,7 @@ def main() -> None:
         quant_lr=args.quant_lr,
         quant_weight_decay=args.quant_weight_decay,
         allocation_policy=args.allocation_policy,
+        state_aware_alpha=args.state_aware_alpha,
     )
     print(json.dumps(summary, indent=2))
 
