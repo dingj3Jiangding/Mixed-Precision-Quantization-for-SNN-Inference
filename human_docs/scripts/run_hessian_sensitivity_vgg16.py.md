@@ -10,7 +10,13 @@
 python scripts/run_hessian_sensitivity_vgg16.py \
   --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --bits 8,4 \
-  --device cuda
+  --device cuda \
+  --batch-size-train 8 \
+  --batch-size-test 16 \
+  --max-hessian-batches 1 \
+  --max-test-batches 5 \
+  --trace-probes 1 \
+  --quant-epochs 1
 ```
 
 ## 关键参数
