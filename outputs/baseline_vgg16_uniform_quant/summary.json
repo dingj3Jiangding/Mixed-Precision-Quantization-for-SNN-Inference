@@ -1,0 +1,16 @@
+{
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_vgg16/fp32_last.pt",
+  "bits_list": [
+    8,
+    4
+  ],
+  "config": {
+    "t_steps": 16,
+    "seed": 42,
+    "max_test_batches": null
+  },
+  "comparison_csv": "outputs/baseline_vgg16_uniform_quant/uniform_comparison.csv",
+  "summary_json": "outputs/baseline_vgg16_uniform_quant/summary.json",
+  "best_setting": "W8"
+}

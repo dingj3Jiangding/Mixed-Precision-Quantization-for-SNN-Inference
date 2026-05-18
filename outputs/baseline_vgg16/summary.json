@@ -1,0 +1,38 @@
+{
+  "config": {
+    "data_root": "baseline/data",
+    "output_dir": "outputs/baseline_vgg16",
+    "dataset_download": true,
+    "batch_size_train": 128,
+    "batch_size_test": 256,
+    "num_workers": 4,
+    "epochs": 100,
+    "t_steps": 16,
+    "lr": 0.001,
+    "weight_decay": 0.0005,
+    "seed": 42,
+    "deterministic": true,
+    "device": "cuda",
+    "max_train_batches": null,
+    "max_test_batches": null
+  },
+  "device": "cuda",
+  "best_test_acc": 0.8348,
+  "final_epoch": {
+    "epoch": 100,
+    "lr": 0.001,
+    "train_loss": 0.23227916768074036,
+    "train_acc": 0.91762,
+    "test_loss": 0.5789550880432129,
+    "test_acc": 0.8348,
+    "spike_rate": 0.04761766169795283,
+    "avg_batch_infer_ms": 83.7352599017322,
+    "params": 14724042,
+    "model_size_mb": 56.167762756347656,
+    "synapse_count_proxy": 14715584,
+    "sop_proxy": 11211547.20959692
+  },
+  "checkpoint_path": "outputs/baseline_vgg16/fp32_last.pt",
+  "metrics_csv": "outputs/baseline_vgg16/epoch_metrics.csv",
+  "summary_json": "outputs/baseline_vgg16/summary.json"
+}

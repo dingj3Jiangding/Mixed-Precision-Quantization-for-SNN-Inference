@@ -1,0 +1,67 @@
+{
+  "method": "weight_state_mixed_precision_proxy_experiment",
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_vgg16/fp32_last.pt",
+  "params": 14724042,
+  "achieved_avg_weight_bits": 4.4714283850372505,
+  "achieved_avg_state_bits": 6.923076923076923,
+  "weight_bits_list": [
+    8,
+    4
+  ],
+  "state_bits_list": [
+    8,
+    6
+  ],
+  "allocation_policy": "rank-map",
+  "weight_allocation_csv": null,
+  "assigned_weight_bits": {
+    "features.0": 8,
+    "features.3": 8,
+    "features.7": 8,
+    "features.10": 8,
+    "features.14": 8,
+    "features.17": 8,
+    "features.20": 8,
+    "classifier": 4,
+    "features.34": 4,
+    "features.37": 4,
+    "features.30": 4,
+    "features.24": 4,
+    "features.40": 4,
+    "features.27": 4
+  },
+  "assigned_state_bits": {
+    "features.2": 6,
+    "features.5": 6,
+    "features.9": 6,
+    "features.12": 6,
+    "features.16": 6,
+    "features.19": 6,
+    "features.22": 6,
+    "features.26": 8,
+    "features.29": 8,
+    "features.32": 8,
+    "features.36": 8,
+    "features.39": 8,
+    "features.42": 8
+  },
+  "uniform_reference_bits": 4,
+  "trace_probes": 1,
+  "max_hessian_batches": 1,
+  "max_test_batches": 5,
+  "quant_epochs": 5,
+  "quant_lr": 0.0001,
+  "quant_weight_decay": 0.0005,
+  "final_joint_mixed_precision_acc": 0.825,
+  "state_quantization_note": "This experiment approximates state precision by quantizing continuous inputs to each LIF node, rather than modifying the neuron's internal membrane update.",
+  "outputs": {
+    "weight_bit_allocation_csv": "outputs/baseline_vgg16_weight_state_mixed/weight_bit_allocation.csv",
+    "state_bit_allocation_csv": "outputs/baseline_vgg16_weight_state_mixed/state_bit_allocation.csv",
+    "comparison_csv": "outputs/baseline_vgg16_weight_state_mixed/comparison.csv",
+    "weight_state_quant_finetune_epoch_metrics_csv": "outputs/baseline_vgg16_weight_state_mixed/weight_state_quant_finetune_epoch_metrics.csv",
+    "weight_sensitivity_ranking_figure": "outputs/baseline_vgg16_weight_state_mixed/weight_sensitivity_ranking.png",
+    "summary_json": "outputs/baseline_vgg16_weight_state_mixed/summary.json"
+  },
+  "best_setting_by_acc": "FP32"
+}
