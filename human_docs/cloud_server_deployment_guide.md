@@ -16,13 +16,13 @@
 - 内存：32GB 以上，64GB 更稳
 - 系统盘：100GB SSD 以上
 - 系统：Ubuntu 20.04 / Ubuntu 22.04
-- 框架镜像：PyTorch 2.x + CUDA 11.8 或 CUDA 12.1
+- 框架镜像：PyTorch 2.x + CUDA 11.8 或 CUDA 12.8
 
 如果平台让你选择框架：
 
 ```text
 框架名称：PyTorch
-框架版本：PyTorch 2.x + CUDA 11.8
+框架版本：PyTorch 2.x + CUDA 11.8 / 12.8
 Python：3.9
 ```
 
@@ -226,13 +226,27 @@ conda create -n spiking_jelly python=3.9 -y
 conda activate spiking_jelly
 ```
 
-安装 PyTorch。CUDA 11.8 示例：
+安装 PyTorch。保持 `Python 3.9` 不变，只根据显卡切换 CUDA wheel：
+
+如果是较新的 RTX 5090 / Blackwell 卡，建议使用 CUDA 12.8：
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+```
+
+如果是旧一些的 CUDA 11.8 环境，仍然可以使用：
 
 ```bash
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 ```
 
 如果云镜像已经装好 PyTorch，可以跳过这一步。
+
+安装完成后建议立即确认：
+
+```bash
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no cuda')"
+```
 
 ---
 
