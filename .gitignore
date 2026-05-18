@@ -16,5 +16,10 @@ __pycache__/
 *.log
 *.tmp
 
+# Datasets
+baseline/data/
+baseline_nmnist/data/
 
+# Large archives
+*.zip
 *.tar.gz
