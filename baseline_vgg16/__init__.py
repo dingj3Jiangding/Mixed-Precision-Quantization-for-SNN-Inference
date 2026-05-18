@@ -1,4 +1,5 @@
 from .config import BaselineVGG16Config
+from .distill_quant import run_distillation_quantization_analysis
 from .hessian import run_hessian_sensitivity_analysis
 from .state_aware_hessian import run_state_aware_hessian_analysis
 from .unquant_runner import run_baseline
@@ -10,6 +11,7 @@ __all__ = [
     "run_baseline",
     "run_uniform_quant_comparison",
     "run_hessian_sensitivity_analysis",
+    "run_distillation_quantization_analysis",
     "run_state_aware_hessian_analysis",
     "run_weight_state_mixed_analysis",
 ]

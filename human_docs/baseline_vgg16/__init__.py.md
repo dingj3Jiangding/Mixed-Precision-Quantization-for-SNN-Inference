@@ -9,3 +9,4 @@
 - `run_baseline`
 - `run_uniform_quant_comparison`
 - `run_hessian_sensitivity_analysis`
+- `run_distillation_quantization_analysis`
