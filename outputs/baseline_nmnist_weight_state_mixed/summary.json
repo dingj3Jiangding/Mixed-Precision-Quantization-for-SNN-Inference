@@ -1,0 +1,47 @@
+{
+  "method": "weight_state_mixed_precision_proxy_experiment",
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_nmnist/fp32_best.pt",
+  "params": 1212426,
+  "achieved_avg_weight_bits": 6.670751029893314,
+  "achieved_avg_state_bits": 6.666666666666667,
+  "weight_bits_list": [
+    8,
+    4
+  ],
+  "state_bits_list": [
+    8,
+    6
+  ],
+  "allocation_policy": "rank-map",
+  "weight_allocation_csv": "outputs/baseline_nmnist_hessian_sensitivity/bit_allocation.csv",
+  "assigned_weight_bits": {
+    "features.0": 8,
+    "features.8": 8,
+    "features.4": 4,
+    "classifier": 4
+  },
+  "assigned_state_bits": {
+    "features.2": 6,
+    "features.6": 6,
+    "features.10": 8
+  },
+  "uniform_reference_bits": 8,
+  "trace_probes": 1,
+  "max_hessian_batches": 5,
+  "max_test_batches": null,
+  "quant_epochs": 5,
+  "quant_lr": 0.0001,
+  "quant_weight_decay": 0.0005,
+  "final_joint_mixed_precision_acc": 0.3849,
+  "state_quantization_note": "This experiment approximates state precision by quantizing continuous inputs to each LIF node, rather than modifying the neuron's internal membrane update.",
+  "outputs": {
+    "weight_bit_allocation_csv": "outputs/baseline_nmnist_weight_state_mixed/weight_bit_allocation.csv",
+    "state_bit_allocation_csv": "outputs/baseline_nmnist_weight_state_mixed/state_bit_allocation.csv",
+    "comparison_csv": "outputs/baseline_nmnist_weight_state_mixed/comparison.csv",
+    "weight_state_quant_finetune_epoch_metrics_csv": "outputs/baseline_nmnist_weight_state_mixed/weight_state_quant_finetune_epoch_metrics.csv",
+    "weight_sensitivity_ranking_figure": "outputs/baseline_nmnist_weight_state_mixed/weight_sensitivity_ranking.png",
+    "summary_json": "outputs/baseline_nmnist_weight_state_mixed/summary.json"
+  },
+  "best_setting_by_acc": "UniformW8"
+}

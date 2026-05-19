@@ -1,0 +1,16 @@
+{
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_nmnist/fp32_best.pt",
+  "bits_list": [
+    8,
+    4
+  ],
+  "config": {
+    "t_steps": 16,
+    "seed": 42,
+    "max_test_batches": null
+  },
+  "comparison_csv": "outputs/baseline_nmnist_uniform_quant/uniform_comparison.csv",
+  "summary_json": "outputs/baseline_nmnist_uniform_quant/summary.json",
+  "best_setting": "W8"
+}
