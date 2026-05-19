@@ -1,12 +1,12 @@
-# 文件：`scripts/run_weight_state_mixed_vgg16.py`
+# 文件：`scripts/run_weight_state_mixed_nmnist.py`
 
 ## 作用
 - 单独运行 `Weight + State Mixed Precision` 的简化版验证脚本。
-- 不影响 `run_hessian_sensitivity_vgg16.py` 和 `run_state_aware_hessian_vgg16.py`。
+- 不影响 `run_hessian_sensitivity_nmnist.py` 和 `run_state_aware_hessian_nmnist.py`。
 
 ## 如何运行
 ```bash
-python scripts/run_weight_state_mixed_vgg16.py \
+python scripts/run_weight_state_mixed_nmnist.py \
   --checkpoint-path outputs/baseline_nmnist/fp32_last.pt \
   --weight-bits 8,4 \
   --state-bits 8,4 \
@@ -15,10 +15,35 @@ python scripts/run_weight_state_mixed_vgg16.py \
 
 如果已有 `outputs/baseline_nmnist_hessian_sensitivity/bit_allocation.csv`，推荐：
 ```bash
-python scripts/run_weight_state_mixed_vgg16.py \
+python scripts/run_weight_state_mixed_nmnist.py \
   --checkpoint-path outputs/baseline_nmnist/fp32_last.pt \
   --weight-allocation-csv outputs/baseline_nmnist_hessian_sensitivity/bit_allocation.csv \
   --state-bits 8,4 \
+  --device cuda
+```
+
+## 推荐高精度命令
+下面这条更适合作为 N-MNIST 上 `Weight + State Mixed Precision` 的正式实验配置。它是**偏向高精度和稳定性**的推荐命令，不等于已经验证过的全局最优：
+
+```bash
+python scripts/run_weight_state_mixed_nmnist.py \
+  --checkpoint-path outputs/baseline_nmnist/fp32_best.pt \
+  --data-root baseline_nmnist/data \
+  --output-dir outputs/baseline_nmnist_weight_state_mixed \
+  --weight-bits 8,4 \
+  --state-bits 8,6 \
+  --weight-allocation-csv outputs/baseline_nmnist_hessian_sensitivity/bit_allocation.csv \
+  --t-steps 16 \
+  --batch-size-train 32 \
+  --batch-size-test 64 \
+  --max-hessian-batches 5 \
+  --max-train-batches 0 \
+  --max-test-batches 0 \
+  --trace-probes 1 \
+  --quant-epochs 5 \
+  --quant-lr 1e-4 \
+  --quant-weight-decay 5e-4 \
+  --seed 42 \
   --device cuda
 ```
 
