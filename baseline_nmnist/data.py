@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from .config import BaselineNMNISTConfig
 
@@ -24,6 +24,37 @@ def _collate_frames(batch):
     return frames, labels
 
 
+class _FrameFromEventDataset(Dataset):
+    def __init__(self, event_dataset, frames_number: int, split_by: str = "number") -> None:
+        self.event_dataset = event_dataset
+        self.frames_number = int(frames_number)
+        self.split_by = split_by
+
+        try:
+            from spikingjelly.datasets import integrate_events_by_fixed_frames_number
+        except Exception as exc:
+            raise RuntimeError(
+                "spikingjelly.datasets.integrate_events_by_fixed_frames_number is required."
+            ) from exc
+
+        self._integrate = integrate_events_by_fixed_frames_number
+        self._H, self._W = self.event_dataset.get_H_W()
+
+    def __len__(self) -> int:
+        return len(self.event_dataset)
+
+    def __getitem__(self, index: int):
+        events, label = self.event_dataset[index]
+        frames = self._integrate(
+            events=events,
+            split_by=self.split_by,
+            frames_num=self.frames_number,
+            H=self._H,
+            W=self._W,
+        )
+        return _ensure_tensor_frames(frames), int(label)
+
+
 def build_nmnist_loaders(cfg: BaselineNMNISTConfig, device: str):
     try:
         from spikingjelly.datasets.n_mnist import NMNIST
@@ -35,15 +66,14 @@ def build_nmnist_loaders(cfg: BaselineNMNISTConfig, device: str):
     data_root = Path(cfg.data_root)
     data_root.mkdir(parents=True, exist_ok=True)
 
-    dataset_kwargs = dict(
-        root=str(data_root),
-        data_type="frame",
-        frames_number=cfg.t_steps,
-        split_by="number",
-    )
+    # Use event mode and integrate each sample to fixed frame counts on the fly.
+    # This avoids relying on the global pre-generated frame cache path, which can
+    # be left in a partially generated state when preprocessing is interrupted.
+    train_event_set = NMNIST(root=str(data_root), train=True, data_type="event")
+    test_event_set = NMNIST(root=str(data_root), train=False, data_type="event")
 
-    train_set = NMNIST(train=True, **dataset_kwargs)
-    test_set = NMNIST(train=False, **dataset_kwargs)
+    train_set = _FrameFromEventDataset(train_event_set, frames_number=cfg.t_steps, split_by="number")
+    test_set = _FrameFromEventDataset(test_event_set, frames_number=cfg.t_steps, split_by="number")
 
     pin_memory = device == "cuda"
     train_loader = DataLoader(
