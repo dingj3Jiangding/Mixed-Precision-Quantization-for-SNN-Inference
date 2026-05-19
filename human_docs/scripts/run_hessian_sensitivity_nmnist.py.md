@@ -37,6 +37,7 @@ python scripts/run_hessian_sensitivity_nmnist.py \
   --quant-epochs 5 \
   --quant-lr 1e-4 \
   --quant-weight-decay 5e-4 \
+  --allocation-policy rank-map \
   --seed 42 \
   --device cuda
 ```
