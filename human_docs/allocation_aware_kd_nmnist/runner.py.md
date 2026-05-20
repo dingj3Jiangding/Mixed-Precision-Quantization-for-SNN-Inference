@@ -50,3 +50,25 @@ outputs/allocation_aware_kd_nmnist/
 
 N-MNIST 版本用于 supporting experiment。
 如果该方法在 CIFAR-10 主线有效，而 N-MNIST 也给出一致趋势，就能增强其泛化性说服力。
+
+# 推荐命令
+
+python scripts/run_allocation_aware_kd_nmnist.py \
+  --checkpoint-path outputs/baseline_nmnist/fp32_best.pt \
+  --data-root baseline_nmnist/data \
+  --output-dir outputs/allocation_aware_kd_nmnist \
+  --bits 8,4 \
+  --weight-allocation-csv outputs/baseline_nmnist_hessian_sensitivity_formal/bit_allocation.csv \
+  --t-steps 16 \
+  --batch-size-train 32 \
+  --batch-size-test 64 \
+  --max-test-batches 0 \
+  --quant-epochs 5 \
+  --quant-lr 1e-4 \
+  --quant-weight-decay 5e-4 \
+  --distill-alpha 0.5 \
+  --distill-temperature 2.0 \
+  --feature-distill-beta 0.1 \
+  --severity-power 1.0 \
+  --seed 42 \
+  --device cuda

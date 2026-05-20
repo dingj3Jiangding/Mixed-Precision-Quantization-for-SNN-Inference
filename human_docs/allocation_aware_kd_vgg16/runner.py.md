@@ -69,3 +69,25 @@ outputs/allocation_aware_kd_vgg16/
 - `AllocAwareKD_*`
 
 用于和原始 HessianMixed / plain KD 结果做对照。
+
+# 推荐命令
+
+python scripts/run_allocation_aware_kd_vgg16.py \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
+  --data-root baseline/data \
+  --output-dir outputs/allocation_aware_kd_vgg16 \
+  --bits 8,4 \
+  --weight-allocation-csv outputs/baseline_vgg16_hessian_sensitivity_formal/bit_allocation.csv \
+  --t-steps 16 \
+  --batch-size-train 32 \
+  --batch-size-test 64 \
+  --max-test-batches 0 \
+  --quant-epochs 5 \
+  --quant-lr 1e-4 \
+  --quant-weight-decay 5e-4 \
+  --distill-alpha 0.5 \
+  --distill-temperature 2.0 \
+  --feature-distill-beta 0.1 \
+  --severity-power 1.0 \
+  --seed 42 \
+  --device cuda
