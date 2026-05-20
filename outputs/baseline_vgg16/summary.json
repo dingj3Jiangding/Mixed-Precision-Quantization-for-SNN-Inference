@@ -26,7 +26,7 @@
     "test_loss": 0.5789550880432129,
     "test_acc": 0.8348,
     "spike_rate": 0.04761766169795283,
-    "avg_batch_infer_ms": 83.7352599017322,
+    "avg_batch_infer_ms": 84.7641249652952,
     "params": 14724042,
     "model_size_mb": 56.167762756347656,
     "synapse_count_proxy": 14715584,

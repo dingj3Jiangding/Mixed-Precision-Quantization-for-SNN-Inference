@@ -21,12 +21,12 @@
   "trace_probes": 1,
   "max_hessian_batches": null,
   "max_test_batches": null,
-  "quant_epochs": 10,
+  "quant_epochs": 5,
   "quant_lr": 0.0001,
   "quant_weight_decay": 0.0005,
   "distill_alpha": 0.5,
   "distill_temperature": 2.0,
-  "final_distilled_mixed_precision_acc": 0.9862,
+  "final_distilled_mixed_precision_acc": 0.9929,
   "outputs": {
     "layer_sensitivity_csv": "outputs/baseline_nmnist_distill_quant/layer_sensitivity.csv",
     "bit_allocation_csv": "outputs/baseline_nmnist_distill_quant/bit_allocation.csv",
@@ -35,5 +35,5 @@
     "ranking_figure": "outputs/baseline_nmnist_distill_quant/sensitivity_ranking.png",
     "summary_json": "outputs/baseline_nmnist_distill_quant/summary.json"
   },
-  "best_setting_by_acc": "HessianKD_T2_a0.5"
+  "best_setting_by_acc": "UniformW8"
 }

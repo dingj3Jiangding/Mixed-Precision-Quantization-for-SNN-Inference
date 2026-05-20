@@ -92,7 +92,7 @@ python scripts/run_baseline_vgg16.py \
 
 ```bash
 python scripts/run_uniform_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_uniform_quant \
   --bits 8,4 \
@@ -106,7 +106,7 @@ python scripts/run_uniform_quant_vgg16.py \
 
 ```bash
 python scripts/run_hessian_sensitivity_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_hessian_sensitivity \
   --bits 8,4 \
@@ -128,7 +128,7 @@ python scripts/run_hessian_sensitivity_vgg16.py \
 
 ```bash
 python scripts/run_state_aware_hessian_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_state_aware_hessian \
   --bits 8,4 \
@@ -156,7 +156,7 @@ python scripts/run_state_aware_hessian_vgg16.py \
 
 ```bash
 python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant \
   --bits 8,4 \

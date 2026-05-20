@@ -23,7 +23,7 @@
   "quant_epochs": 5,
   "quant_lr": 0.0001,
   "quant_weight_decay": 0.0005,
-  "final_mixed_precision_acc": 0.9927,
+  "final_mixed_precision_acc": 0.9942,
   "outputs": {
     "layer_sensitivity_csv": "outputs/baseline_nmnist_hessian_sensitivity/layer_sensitivity.csv",
     "bit_allocation_csv": "outputs/baseline_nmnist_hessian_sensitivity/bit_allocation.csv",
