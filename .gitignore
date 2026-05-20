@@ -23,3 +23,5 @@ baseline_nmnist/data/
 # Large archives
 *.zip
 *.tar.gz
+
+.DS_Store
