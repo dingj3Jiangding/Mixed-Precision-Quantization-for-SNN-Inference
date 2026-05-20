@@ -1,0 +1,31 @@
+{
+  "method": "difficulty_adaptive_state_precision_proxy_experiment",
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_nmnist/fp32_best.pt",
+  "params": 1212426,
+  "model_size_mb": 4.625038146972656,
+  "low_state_bits": 7,
+  "high_state_bits": 8,
+  "warmup_steps": 8,
+  "difficulty_metric": "confidence",
+  "easy_threshold": 0.995,
+  "total_state_cost_proxy": 1906688.0,
+  "max_hessian_batches": null,
+  "max_test_batches": null,
+  "quant_epochs": 5,
+  "quant_lr": 0.0001,
+  "quant_weight_decay": 0.0005,
+  "final_fixed_low_acc": 0.9498,
+  "final_adaptive_acc": 0.9563,
+  "adaptive_avg_state_bits_used": 7.77875,
+  "adaptive_easy_fraction_post_warmup": 0.4425,
+  "state_quantization_note": "This experiment approximates state precision by quantizing continuous inputs to each LIF node, rather than modifying the neuron's internal membrane update.",
+  "outputs": {
+    "state_cost_proxy_csv": "outputs/difficulty_adaptive_state_precision_nmnist_safe2/state_cost_proxy.csv",
+    "comparison_csv": "outputs/difficulty_adaptive_state_precision_nmnist_safe2/comparison.csv",
+    "fixed_low_state_epoch_metrics_csv": "outputs/difficulty_adaptive_state_precision_nmnist_safe2/fixed_low_state_epoch_metrics.csv",
+    "adaptive_state_epoch_metrics_csv": "outputs/difficulty_adaptive_state_precision_nmnist_safe2/adaptive_state_epoch_metrics.csv",
+    "summary_json": "outputs/difficulty_adaptive_state_precision_nmnist_safe2/summary.json"
+  },
+  "best_setting_by_acc": "FP32State"
+}
