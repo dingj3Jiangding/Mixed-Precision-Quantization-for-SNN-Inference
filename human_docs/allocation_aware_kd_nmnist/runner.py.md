@@ -19,6 +19,12 @@ L = (1 - alpha) * CE + alpha * KD + beta * FeatureKD_alloc
 - `KD` 是 logits distillation
 - `FeatureKD_alloc` 是根据 layer-wise allocation severity 加权的中间特征蒸馏
 
+当前 severity 设计不是拿全网最大 Hessian 直接归一化，而是：
+
+- 只在实际 low-bit 层内部比较量化压力
+- 优先使用 `trace_density`，避免单纯受参数量放大
+- 结合 sensitivity rank 拉开层间差异
+
 ## 输入
 
 - `checkpoint_path`

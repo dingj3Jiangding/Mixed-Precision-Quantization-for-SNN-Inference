@@ -26,7 +26,9 @@ L = (1 - alpha) * CE + alpha * KD + beta * FeatureKD_alloc
 不是对所有层一视同仁，而是先根据已有 mixed-precision allocation 计算每一层的 `severity`：
 
 - bit 越低，severity 越高
-- Hessian trace 越大，severity 越高
+- 对 low-bit 层内部，优先按 `trace_density`（不可用时退化到 `hessian_trace`）比较敏感度
+- 为避免被全网最敏感早期层“压扁”，severity 只在实际 low-bit 层集合内部归一化
+- 同时引入层内 sensitivity rank，避免多个 low-bit 层的权重几乎相同
 - 最终只对有量化压力的层施加更强的 feature matching
 
 输出里会额外保存：

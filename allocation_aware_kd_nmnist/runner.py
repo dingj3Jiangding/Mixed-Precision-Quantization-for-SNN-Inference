@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -86,27 +87,50 @@ def _build_layer_severity(
     max_bit = max(bits_sorted)
     min_bit = min(bits_sorted)
     bit_span = max(max_bit - min_bit, 1)
-    max_abs_hessian = max(abs(float(row.get("hessian_trace", 0.0))) for row in layer_rows) or 1.0
-
-    severity: Dict[str, float] = {}
-    for row in layer_rows:
-        layer_name = row["layer_name"]
-        if layer_name == "classifier":
-            continue
-        assigned_bit = int(layer_bits[layer_name])
-        bit_gap = (max_bit - assigned_bit) / float(bit_span)
-        if bit_gap <= 0.0:
-            continue
-        hessian_norm = abs(float(row.get("hessian_trace", 0.0))) / max_abs_hessian
-        raw = (bit_gap ** severity_power) * (0.5 + 0.5 * hessian_norm)
-        severity[layer_name] = raw
-
-    if not severity:
+    target_rows = [
+        row
+        for row in layer_rows
+        if row["layer_name"] != "classifier" and int(layer_bits[row["layer_name"]]) < max_bit
+    ]
+    if not target_rows:
         return {}
 
+    metric_key = "trace_density"
+    if not any(abs(float(row.get(metric_key, 0.0))) > 0.0 for row in target_rows):
+        metric_key = "hessian_trace"
+
+    metric_by_layer = {
+        row["layer_name"]: abs(float(row.get(metric_key, 0.0)))
+        for row in target_rows
+    }
+    max_metric = max(metric_by_layer.values()) or 1.0
+
+    ranked_layers = sorted(
+        target_rows,
+        key=lambda row: metric_by_layer[row["layer_name"]],
+        reverse=True,
+    )
+    rank_count = max(len(ranked_layers) - 1, 1)
+    rank_score_by_layer = {
+        row["layer_name"]: 1.0 - (idx / float(rank_count))
+        for idx, row in enumerate(ranked_layers)
+    }
+
+    severity: Dict[str, float] = {}
+    for row in target_rows:
+        layer_name = row["layer_name"]
+        assigned_bit = int(layer_bits[layer_name])
+        bit_pressure = ((max_bit - assigned_bit) / float(bit_span)) ** severity_power
+        metric_ratio = metric_by_layer[layer_name] / max_metric
+        metric_score = math.sqrt(metric_ratio)
+        rank_score = rank_score_by_layer[layer_name]
+        raw = bit_pressure * (0.7 * metric_score + 0.3 * rank_score)
+        severity[layer_name] = raw
+
     max_raw = max(severity.values()) or 1.0
-    for layer_name in list(severity.keys()):
-        severity[layer_name] = severity[layer_name] / max_raw
+    for layer_name, raw in list(severity.items()):
+        normalized = raw / max_raw
+        severity[layer_name] = 0.1 + 0.9 * normalized
     return severity
 
 
