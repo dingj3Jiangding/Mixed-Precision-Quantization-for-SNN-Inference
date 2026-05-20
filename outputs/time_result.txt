@@ -1,0 +1,46 @@
+/usr/bin/time -p python scripts/run_hessian_sensitivity_vgg16.py \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
+  --data-root baseline/data \
+  --output-dir outputs/baseline_vgg16_hessian_sensitivity_timed \
+  --bits 8,4 \
+  --t-steps 16 \
+  --batch-size-train 32 \
+  --batch-size-test 64 \
+  --max-hessian-batches 10 \
+  --max-test-batches 0 \
+  --trace-probes 1 \
+  --quant-epochs 5 \
+  --quant-lr 1e-4 \
+  --quant-weight-decay 5e-4 \
+  --allocation-policy rank-map \
+  --seed 42 \
+  --device cuda
+
+real 738.40
+user 794.58
+sys 13.63
+
+
+/usr/bin/time -p python scripts/run_distill_quant_vgg16.py \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
+  --data-root baseline/data \
+  --output-dir outputs/baseline_vgg16_distill_quant_timed \
+  --bits 8,4 \
+  --weight-allocation-csv outputs/baseline_vgg16_hessian_sensitivity_formal/bit_allocation.csv \
+  --t-steps 16 \
+  --batch-size-train 32 \
+  --batch-size-test 64 \
+  --max-test-batches 0 \
+  --quant-epochs 5 \
+  --quant-lr 1e-4 \
+  --quant-weight-decay 5e-4 \
+  --distill-alpha 0.5 \
+  --distill-temperature 2.0 \
+  --seed 42 \
+  --device cuda
+
+real 801.70
+user 863.69
+sys 12.90
+
+

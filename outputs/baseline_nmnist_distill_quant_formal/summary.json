@@ -1,0 +1,39 @@
+{
+  "method": "hessian_guided_distillation_assisted_quantization",
+  "device": "cuda",
+  "checkpoint_path": "outputs/baseline_nmnist/fp32_best.pt",
+  "params": 1212426,
+  "target_avg_bits": null,
+  "achieved_avg_bits": 6.670751029893314,
+  "bits_list": [
+    8,
+    4
+  ],
+  "allocation_policy": "rank-map",
+  "weight_allocation_csv": "outputs/baseline_nmnist_hessian_sensitivity_formal/bit_allocation.csv",
+  "assigned_bits": {
+    "features.0": 8,
+    "features.8": 8,
+    "features.4": 4,
+    "classifier": 4
+  },
+  "uniform_reference_bits": 8,
+  "trace_probes": 1,
+  "max_hessian_batches": null,
+  "max_test_batches": null,
+  "quant_epochs": 5,
+  "quant_lr": 0.0001,
+  "quant_weight_decay": 0.0005,
+  "distill_alpha": 0.5,
+  "distill_temperature": 2.0,
+  "final_distilled_mixed_precision_acc": 0.9929,
+  "outputs": {
+    "layer_sensitivity_csv": "outputs/baseline_nmnist_distill_quant_formal/layer_sensitivity.csv",
+    "bit_allocation_csv": "outputs/baseline_nmnist_distill_quant_formal/bit_allocation.csv",
+    "comparison_csv": "outputs/baseline_nmnist_distill_quant_formal/comparison.csv",
+    "distill_quant_epoch_metrics_csv": "outputs/baseline_nmnist_distill_quant_formal/distill_quant_epoch_metrics.csv",
+    "ranking_figure": "outputs/baseline_nmnist_distill_quant_formal/sensitivity_ranking.png",
+    "summary_json": "outputs/baseline_nmnist_distill_quant_formal/summary.json"
+  },
+  "best_setting_by_acc": "UniformW8"
+}
