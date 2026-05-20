@@ -6,6 +6,27 @@
 - 只保留与论文主结果直接相关的实验。
 - 默认围绕 `baseline_vgg16` 主线组织。
 
+## 当前说明
+
+当前 `baseline_vgg16` 目录下实际可用的 checkpoint 是：
+
+- `outputs/baseline_vgg16/fp32_last.pt`
+
+当前未确认存在：
+
+- `outputs/baseline_vgg16/fp32_best.pt`
+
+因此下面所有 `baseline_vgg16` 相关命令，统一使用：
+
+- `fp32_last.pt`
+
+这样做的目的不是声称它优于 `best`，而是先保证：
+
+- 所有 formal comparison 使用同一个 checkpoint source
+- Hessian / KD / ablation 的实验协议一致
+
+如果后续补出了真正的 `fp32_best.pt`，再统一重跑即可。
+
 ---
 
 ## 一、实验优先级
@@ -33,7 +54,7 @@
 
 ```bash
 python scripts/run_hessian_sensitivity_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_hessian_sensitivity_formal \
   --bits 8,4 \
@@ -70,7 +91,7 @@ python scripts/run_hessian_sensitivity_vgg16.py \
 
 ```bash
 python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant_formal \
   --bits 8,4 \
@@ -113,7 +134,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 这些命令都默认复用：
 
-- `outputs/baseline_vgg16/fp32_best.pt`
+- `outputs/baseline_vgg16/fp32_last.pt`
 - `outputs/baseline_vgg16_hessian_sensitivity_formal/bit_allocation.csv`
 
 ---
@@ -122,7 +143,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 ```bash
 python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant_a03_t2 \
   --bits 8,4 \
@@ -144,7 +165,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 ```bash
 python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant_a05_t1 \
   --bits 8,4 \
@@ -166,7 +187,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 ```bash
 python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant_a05_t4 \
   --bits 8,4 \
@@ -188,7 +209,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 ```bash
 python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant_a07_t2 \
   --bits 8,4 \
@@ -230,7 +251,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 ```bash
 /usr/bin/time -p python scripts/run_hessian_sensitivity_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_hessian_sensitivity_timed \
   --bits 8,4 \
@@ -262,7 +283,7 @@ python scripts/run_distill_quant_vgg16.py \
 
 ```bash
 /usr/bin/time -p python scripts/run_distill_quant_vgg16.py \
-  --checkpoint-path outputs/baseline_vgg16/fp32_best.pt \
+  --checkpoint-path outputs/baseline_vgg16/fp32_last.pt \
   --data-root baseline/data \
   --output-dir outputs/baseline_vgg16_distill_quant_timed \
   --bits 8,4 \
