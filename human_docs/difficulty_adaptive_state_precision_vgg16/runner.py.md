@@ -22,6 +22,8 @@
 3. 将 batch 内样本划分为 easy / hard 两组
 4. 后续步分别以低 bits / 高 bits 对两组样本执行
 
+当前实现中，two-stage adaptive fine-tuning 会临时关闭时序 dropout，以避免子 batch 执行时复用原始 batch 大小的 dropout mask 而产生维度冲突。
+
 ## 难度判断
 
 支持两种 difficulty signal：

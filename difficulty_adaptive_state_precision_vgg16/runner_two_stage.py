@@ -8,7 +8,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-from spikingjelly.activation_based import functional, neuron
+from spikingjelly.activation_based import functional, layer, neuron
 
 from baseline_vgg16.config import BaselineVGG16Config
 from baseline_vgg16.data import build_cifar10_loaders
@@ -27,6 +27,21 @@ from baseline_vgg16.weight_state_mixed import estimate_state_cost_proxy
 
 def _estimate_state_bytes_per_sample(total_state_cost_proxy: float, avg_state_bits_used: float) -> float:
     return total_state_cost_proxy * avg_state_bits_used / 8.0
+
+
+def _set_spiking_dropout_training(model: nn.Module, enabled: bool) -> Dict[str, bool]:
+    states: Dict[str, bool] = {}
+    for name, module in model.named_modules():
+        if isinstance(module, layer.Dropout):
+            states[name] = bool(module.training)
+            module.train(enabled)
+    return states
+
+
+def _restore_spiking_dropout_training(model: nn.Module, states: Dict[str, bool]) -> None:
+    modules = dict(model.named_modules())
+    for name, was_training in states.items():
+        modules[name].train(was_training)
 
 
 def _collect_state_layers(model: nn.Module) -> List[str]:
@@ -613,10 +628,12 @@ def finetune_with_batch_two_stage_policy(
     state_layer_names = _collect_state_layers(model)
     quantizer = _DynamicStateInputQuantizer(model, state_layer_names)
     rows: List[dict] = []
+    dropout_states = _set_spiking_dropout_training(model, enabled=False)
 
     try:
         for epoch in range(1, epochs + 1):
             model.train()
+            _set_spiking_dropout_training(model, enabled=False)
             loss_sum = 0.0
             correct = 0
             total = 0
@@ -678,6 +695,7 @@ def finetune_with_batch_two_stage_policy(
             )
     finally:
         quantizer.close()
+        _restore_spiking_dropout_training(model, dropout_states)
 
     return rows
 
