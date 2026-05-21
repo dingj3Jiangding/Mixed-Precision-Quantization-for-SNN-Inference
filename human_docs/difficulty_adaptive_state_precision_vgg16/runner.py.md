@@ -15,12 +15,12 @@
 - `FixedStateLowB*`
 - `AdaptiveStateB*to*`
 
-其中 adaptive 策略是：
+其中 adaptive 策略现在采用 **batch-wise two-stage mode**：
 
 1. 前 `warmup_steps` 步全部使用高 state bits
 2. 根据前若干步的累计输出估计样本难度
-3. easy samples 在后续步切换到低 bits
-4. hard samples 保持高 bits
+3. 将 batch 内样本划分为 easy / hard 两组
+4. 后续步分别以低 bits / 高 bits 对两组样本执行
 
 ## 难度判断
 

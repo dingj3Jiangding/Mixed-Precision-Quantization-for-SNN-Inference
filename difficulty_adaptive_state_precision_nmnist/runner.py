@@ -4,7 +4,7 @@ import copy
 import json
 import time
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -35,6 +35,14 @@ def _collect_state_layers(model: nn.Module) -> List[str]:
         if isinstance(module, neuron.BaseNode):
             layer_names.append(name)
     return layer_names
+
+
+def _collect_state_modules(model: nn.Module) -> List[Tuple[str, nn.Module]]:
+    modules: List[Tuple[str, nn.Module]] = []
+    for name, module in model.named_modules():
+        if isinstance(module, neuron.BaseNode):
+            modules.append((name, module))
+    return modules
 
 
 class _DynamicStateInputQuantizer:
@@ -188,6 +196,87 @@ class _DifficultyAdaptiveStatePolicy:
         }
 
 
+def _compute_easy_mask_from_logits(
+    cumulative_logits: torch.Tensor,
+    warmup_steps: int,
+    difficulty_metric: str,
+    easy_threshold: float,
+) -> torch.Tensor:
+    mean_logits = cumulative_logits / float(max(warmup_steps, 1))
+    probs = torch.softmax(mean_logits, dim=1)
+    if difficulty_metric == "confidence":
+        easy_score = probs.max(dim=1).values
+    elif difficulty_metric == "margin":
+        top2 = probs.topk(k=2, dim=1).values
+        easy_score = top2[:, 0] - top2[:, 1]
+    else:
+        raise ValueError(f"Unsupported difficulty metric: {difficulty_metric}")
+    return easy_score >= easy_threshold
+
+
+def _infer_state_batch_dim(state: torch.Tensor, batch_size: int) -> int:
+    for dim, size in enumerate(state.shape):
+        if int(size) == int(batch_size):
+            return dim
+    raise ValueError("Unable to infer batch dimension for neuron state tensor.")
+
+
+def _capture_state_snapshot(model: nn.Module, batch_size: int) -> Dict[str, Tuple[torch.Tensor, int]]:
+    snapshot: Dict[str, Tuple[torch.Tensor, int]] = {}
+    for name, module in _collect_state_modules(model):
+        state = getattr(module, "v", None)
+        if torch.is_tensor(state):
+            batch_dim = _infer_state_batch_dim(state, batch_size)
+            snapshot[name] = (state.detach().clone(), batch_dim)
+    return snapshot
+
+
+def _restore_state_snapshot(model: nn.Module, snapshot: Dict[str, Tuple[torch.Tensor, int]]) -> None:
+    modules = dict(_collect_state_modules(model))
+    for name, (state, _batch_dim) in snapshot.items():
+        modules[name].v = state.clone()
+
+
+def _select_state_snapshot(
+    snapshot: Dict[str, Tuple[torch.Tensor, int]],
+    indices: torch.Tensor,
+) -> Dict[str, Tuple[torch.Tensor, int]]:
+    sub_snapshot: Dict[str, Tuple[torch.Tensor, int]] = {}
+    for name, (state, batch_dim) in snapshot.items():
+        sub_snapshot[name] = (state.index_select(batch_dim, indices).clone(), batch_dim)
+    return sub_snapshot
+
+
+def _merge_state_snapshot(
+    base_snapshot: Dict[str, Tuple[torch.Tensor, int]],
+    indices: torch.Tensor,
+    updated_snapshot: Dict[str, Tuple[torch.Tensor, int]],
+) -> Dict[str, Tuple[torch.Tensor, int]]:
+    merged: Dict[str, Tuple[torch.Tensor, int]] = {}
+    for name, (base_state, batch_dim) in base_snapshot.items():
+        out = base_state.clone()
+        updated_state, _ = updated_snapshot[name]
+        out.index_copy_(batch_dim, indices, updated_state)
+        merged[name] = (out, batch_dim)
+    return merged
+
+
+def _run_single_step_with_snapshot(
+    model: nn.Module,
+    x_step: torch.Tensor,
+    quantizer: _DynamicStateInputQuantizer,
+    bits_per_sample: torch.Tensor,
+    snapshot: Dict[str, Tuple[torch.Tensor, int]],
+) -> Tuple[torch.Tensor, Dict[str, Tuple[torch.Tensor, int]]]:
+    _restore_state_snapshot(model, snapshot)
+    quantizer.set_bits_per_sample(bits_per_sample)
+    logits_step = model(x_step.unsqueeze(0))
+    if logits_step.ndim == 3 and logits_step.shape[0] == 1:
+        logits_step = logits_step.squeeze(0)
+    next_snapshot = _capture_state_snapshot(model, batch_size=x_step.shape[0])
+    return logits_step, next_snapshot
+
+
 def _run_sequence_with_policy(
     model: nn.Module,
     x_seq: torch.Tensor,
@@ -205,6 +294,93 @@ def _run_sequence_with_policy(
         policy.observe_logits(logits_step, step_idx)
     quantizer.clear_bits_per_sample()
     return torch.stack(logits_steps, dim=0)
+
+
+def _run_sequence_with_batch_two_stage_policy(
+    model: nn.Module,
+    x_seq: torch.Tensor,
+    quantizer: _DynamicStateInputQuantizer,
+    low_bits: int,
+    high_bits: int,
+    warmup_steps: int,
+    difficulty_metric: str,
+    easy_threshold: float,
+) -> Tuple[torch.Tensor, dict]:
+    batch_size = x_seq.shape[1]
+    device = x_seq.device
+    logits_steps: List[torch.Tensor] = []
+    cumulative_logits: Optional[torch.Tensor] = None
+    easy_mask: Optional[torch.Tensor] = None
+    total_bits = 0.0
+    total_assignments = 0
+    total_post_warmup_assignments = 0
+    total_easy_assignments = 0
+
+    for step_idx in range(x_seq.shape[0]):
+        if step_idx < warmup_steps or easy_mask is None:
+            bits = torch.full((batch_size,), high_bits, dtype=torch.int64, device=device)
+            quantizer.set_bits_per_sample(bits)
+            logits_step = model(x_seq[step_idx : step_idx + 1])
+            if logits_step.ndim == 3 and logits_step.shape[0] == 1:
+                logits_step = logits_step.squeeze(0)
+            logits_steps.append(logits_step)
+            cumulative_logits = logits_step if cumulative_logits is None else cumulative_logits + logits_step
+            total_bits += float(bits.sum().item())
+            total_assignments += int(bits.numel())
+            if step_idx + 1 == warmup_steps:
+                easy_mask = _compute_easy_mask_from_logits(
+                    cumulative_logits=cumulative_logits,
+                    warmup_steps=warmup_steps,
+                    difficulty_metric=difficulty_metric,
+                    easy_threshold=easy_threshold,
+                )
+            continue
+
+        base_snapshot = _capture_state_snapshot(model, batch_size=batch_size)
+        logits_step = torch.empty((batch_size, cumulative_logits.shape[1]), device=device)
+        merged_snapshot = base_snapshot
+        easy_indices = easy_mask.nonzero(as_tuple=False).flatten()
+        hard_indices = (~easy_mask).nonzero(as_tuple=False).flatten()
+
+        if easy_indices.numel() > 0:
+            easy_snapshot = _select_state_snapshot(base_snapshot, easy_indices)
+            easy_bits = torch.full((easy_indices.numel(),), low_bits, dtype=torch.int64, device=device)
+            easy_logits, easy_next_snapshot = _run_single_step_with_snapshot(
+                model=model,
+                x_step=x_seq[step_idx].index_select(0, easy_indices),
+                quantizer=quantizer,
+                bits_per_sample=easy_bits,
+                snapshot=easy_snapshot,
+            )
+            logits_step.index_copy_(0, easy_indices, easy_logits)
+            merged_snapshot = _merge_state_snapshot(merged_snapshot, easy_indices, easy_next_snapshot)
+
+        if hard_indices.numel() > 0:
+            hard_snapshot = _select_state_snapshot(base_snapshot, hard_indices)
+            hard_bits = torch.full((hard_indices.numel(),), high_bits, dtype=torch.int64, device=device)
+            hard_logits, hard_next_snapshot = _run_single_step_with_snapshot(
+                model=model,
+                x_step=x_seq[step_idx].index_select(0, hard_indices),
+                quantizer=quantizer,
+                bits_per_sample=hard_bits,
+                snapshot=hard_snapshot,
+            )
+            logits_step.index_copy_(0, hard_indices, hard_logits)
+            merged_snapshot = _merge_state_snapshot(merged_snapshot, hard_indices, hard_next_snapshot)
+
+        _restore_state_snapshot(model, merged_snapshot)
+        logits_steps.append(logits_step)
+        total_assignments += batch_size
+        total_post_warmup_assignments += batch_size
+        total_easy_assignments += int(easy_mask.sum().item())
+        total_bits += float(easy_indices.numel() * low_bits + hard_indices.numel() * high_bits)
+
+    quantizer.clear_bits_per_sample()
+    return torch.stack(logits_steps, dim=0), {
+        "avg_state_bits_used": total_bits / float(max(total_assignments, 1)),
+        "state_bit_ratio_vs_high": (total_bits / float(max(total_assignments, 1))) / float(max(high_bits, 1)),
+        "easy_fraction_post_warmup": total_easy_assignments / float(max(total_post_warmup_assignments, 1)),
+    }
 
 
 def evaluate_with_state_policy(
@@ -262,6 +438,77 @@ def evaluate_with_state_policy(
         "spike_rate": spike_rate,
         "avg_batch_infer_ms": (infer_time_sum / float(max(batch_count, 1))) * 1000.0,
         **policy.summary(high_state_bits),
+    }
+
+
+def evaluate_with_batch_two_stage_policy(
+    model: nn.Module,
+    loader,
+    criterion: nn.Module,
+    device: str,
+    t_steps: int,
+    max_batches: Optional[int],
+    low_state_bits: int,
+    high_state_bits: int,
+    warmup_steps: int,
+    difficulty_metric: str,
+    easy_threshold: float,
+) -> dict:
+    model.eval()
+    loss_sum = 0.0
+    correct = 0
+    total = 0
+    infer_time_sum = 0.0
+    batch_count = 0
+
+    state_layer_names = _collect_state_layers(model)
+    quantizer = _DynamicStateInputQuantizer(model, state_layer_names)
+    spike_tracker = SpikeRateTracker(model)
+    spike_tracker.reset()
+    summary_acc = {"avg_state_bits_used": 0.0, "state_bit_ratio_vs_high": 1.0, "easy_fraction_post_warmup": 0.0}
+    batch_summaries: List[dict] = []
+    try:
+        for x, y in _iter_with_limit(loader, max_batches):
+            x = x.to(device)
+            y = y.to(device)
+            x_seq = direct_encode(x, t_steps)
+            start_time = time.perf_counter()
+            logits_seq, batch_summary = _run_sequence_with_batch_two_stage_policy(
+                model=model,
+                x_seq=x_seq,
+                quantizer=quantizer,
+                low_bits=low_state_bits,
+                high_bits=high_state_bits,
+                warmup_steps=warmup_steps,
+                difficulty_metric=difficulty_metric,
+                easy_threshold=easy_threshold,
+            )
+            infer_time_sum += time.perf_counter() - start_time
+            batch_count += 1
+            batch_summaries.append(batch_summary)
+
+            logits = logits_seq.mean(dim=0)
+            loss = criterion(logits, y)
+            batch_size = y.shape[0]
+            loss_sum += float(loss.item()) * batch_size
+            correct += int((logits.argmax(dim=1) == y).sum().item())
+            total += batch_size
+            functional.reset_net(model)
+    finally:
+        quantizer.close()
+
+    if batch_summaries:
+        keys = summary_acc.keys()
+        summary_acc = {k: sum(item[k] for item in batch_summaries) / float(len(batch_summaries)) for k in keys}
+
+    spike_rate = spike_tracker.rate()
+    spike_tracker.close()
+    return {
+        "test_loss": loss_sum / float(max(total, 1)),
+        "test_acc": correct / float(max(total, 1)),
+        "spike_rate": spike_rate,
+        "avg_batch_infer_ms": (infer_time_sum / float(max(batch_count, 1))) * 1000.0,
+        **summary_acc,
     }
 
 
@@ -333,6 +580,98 @@ def finetune_with_state_policy(
                     "train_loss": loss_sum / float(max(total, 1)),
                     "train_acc": correct / float(max(total, 1)),
                     "train_avg_state_bits_used": train_policy.summary(high_state_bits)["avg_state_bits_used"],
+                    **test_metrics,
+                    "sop_proxy": sop_proxy(test_metrics["spike_rate"], synapse_count, t_steps),
+                }
+            )
+    finally:
+        quantizer.close()
+
+    return rows
+
+
+def finetune_with_batch_two_stage_policy(
+    model: nn.Module,
+    train_loader,
+    test_loader,
+    criterion: nn.Module,
+    device: str,
+    t_steps: int,
+    epochs: int,
+    lr: float,
+    weight_decay: float,
+    max_train_batches: Optional[int],
+    max_test_batches: Optional[int],
+    synapse_count: int,
+    low_state_bits: int,
+    high_state_bits: int,
+    warmup_steps: int,
+    difficulty_metric: str,
+    easy_threshold: float,
+) -> List[dict]:
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    state_layer_names = _collect_state_layers(model)
+    quantizer = _DynamicStateInputQuantizer(model, state_layer_names)
+    rows: List[dict] = []
+
+    try:
+        for epoch in range(1, epochs + 1):
+            model.train()
+            loss_sum = 0.0
+            correct = 0
+            total = 0
+            train_summaries: List[dict] = []
+
+            for x, y in _iter_with_limit(train_loader, max_train_batches):
+                x = x.to(device)
+                y = y.to(device)
+                x_seq = direct_encode(x, t_steps)
+                optimizer.zero_grad(set_to_none=True)
+                logits_seq, batch_summary = _run_sequence_with_batch_two_stage_policy(
+                    model=model,
+                    x_seq=x_seq,
+                    quantizer=quantizer,
+                    low_bits=low_state_bits,
+                    high_bits=high_state_bits,
+                    warmup_steps=warmup_steps,
+                    difficulty_metric=difficulty_metric,
+                    easy_threshold=easy_threshold,
+                )
+                train_summaries.append(batch_summary)
+                logits = logits_seq.mean(dim=0)
+                loss = criterion(logits, y)
+                loss.backward()
+                optimizer.step()
+
+                batch_size = y.shape[0]
+                loss_sum += float(loss.item()) * batch_size
+                correct += int((logits.argmax(dim=1) == y).sum().item())
+                total += batch_size
+                functional.reset_net(model)
+
+            train_avg_bits = (
+                sum(item["avg_state_bits_used"] for item in train_summaries) / float(max(len(train_summaries), 1))
+            )
+            test_metrics = evaluate_with_batch_two_stage_policy(
+                model=model,
+                loader=test_loader,
+                criterion=criterion,
+                device=device,
+                t_steps=t_steps,
+                max_batches=max_test_batches,
+                low_state_bits=low_state_bits,
+                high_state_bits=high_state_bits,
+                warmup_steps=warmup_steps,
+                difficulty_metric=difficulty_metric,
+                easy_threshold=easy_threshold,
+            )
+            rows.append(
+                {
+                    "epoch": epoch,
+                    "lr": optimizer.param_groups[0]["lr"],
+                    "train_loss": loss_sum / float(max(total, 1)),
+                    "train_acc": correct / float(max(total, 1)),
+                    "train_avg_state_bits_used": train_avg_bits,
                     **test_metrics,
                     "sop_proxy": sop_proxy(test_metrics["spike_rate"], synapse_count, t_steps),
                 }
@@ -438,14 +777,7 @@ def run_difficulty_adaptive_state_precision_analysis(
     )
 
     adaptive_model = copy.deepcopy(fp32_model).to(device)
-    adaptive_factory = lambda: _DifficultyAdaptiveStatePolicy(
-        low_bits=low_state_bits,
-        high_bits=high_state_bits,
-        warmup_steps=warmup_steps,
-        difficulty_metric=difficulty_metric,
-        easy_threshold=easy_threshold,
-    )
-    adaptive_rows = finetune_with_state_policy(
+    adaptive_rows = finetune_with_batch_two_stage_policy(
         model=adaptive_model,
         train_loader=train_loader,
         test_loader=test_loader,
@@ -458,18 +790,24 @@ def run_difficulty_adaptive_state_precision_analysis(
         max_train_batches=cfg.max_train_batches,
         max_test_batches=eval_limit,
         synapse_count=synapse_count,
-        policy_factory=adaptive_factory,
+        low_state_bits=low_state_bits,
         high_state_bits=high_state_bits,
+        warmup_steps=warmup_steps,
+        difficulty_metric=difficulty_metric,
+        easy_threshold=easy_threshold,
     )
-    adaptive_metrics = evaluate_with_state_policy(
+    adaptive_metrics = evaluate_with_batch_two_stage_policy(
         model=adaptive_model,
         loader=test_loader,
         criterion=criterion,
         device=device,
         t_steps=cfg.t_steps,
         max_batches=eval_limit,
-        policy_factory=adaptive_factory,
+        low_state_bits=low_state_bits,
         high_state_bits=high_state_bits,
+        warmup_steps=warmup_steps,
+        difficulty_metric=difficulty_metric,
+        easy_threshold=easy_threshold,
     )
 
     comparison_rows = [
@@ -566,7 +904,8 @@ def run_difficulty_adaptive_state_precision_analysis(
         "adaptive_easy_fraction_post_warmup": adaptive_metrics["easy_fraction_post_warmup"],
         "state_quantization_note": (
             "This experiment approximates state precision by quantizing continuous inputs "
-            "to each LIF node, rather than modifying the neuron's internal membrane update."
+            "to each LIF node. The adaptive path now uses a batch-wise two-stage mode: "
+            "warmup at high precision, then grouped easy/hard execution."
         ),
         "outputs": {
             "state_cost_proxy_csv": str(state_proxy_csv),
