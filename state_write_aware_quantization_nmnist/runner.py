@@ -57,7 +57,7 @@ class _StateWriteAwareQuantizer:
                 continue
             self._layer_writes[name] = 0
             self._layer_assignments[name] = 0
-            self._handles.append(module.register_forward_pre_hook(self._make_pre_hook(name)))
+            self._handles.append(module.register_forward_hook(self._make_forward_hook(name)))
 
     def reset_batch(self) -> None:
         self._cache.clear()
@@ -66,25 +66,39 @@ class _StateWriteAwareQuantizer:
     def begin_timestep(self, step_idx: int) -> None:
         self._current_step = int(step_idx)
 
-    def _make_pre_hook(self, layer_name: str):
-        def hook(_module: nn.Module, inputs):
-            if not inputs:
-                return inputs
-            x = inputs[0]
-            if not torch.is_tensor(x):
-                return inputs
-            q_x = self._quantize_or_reuse(layer_name, x)
-            if len(inputs) == 1:
-                return (q_x,)
-            return (q_x,) + tuple(inputs[1:])
+    def _make_forward_hook(self, layer_name: str):
+        def hook(_module: nn.Module, _inputs, output):
+            state = getattr(_module, "v", None)
+            if not torch.is_tensor(state):
+                return output
+            self._quantize_or_reuse_state(layer_name, _module, state)
+            return output
 
         return hook
 
-    def _quantize_or_reuse(self, layer_name: str, x: torch.Tensor) -> torch.Tensor:
-        q_current = _quantize_tensor_symmetric_per_tensor(x, self.state_bits)
-        batch_dim = 1 if x.ndim >= 2 and x.shape[0] == 1 else 0
-        batch_size = int(x.shape[batch_dim])
+    @staticmethod
+    def _infer_batch_dim(tensor: torch.Tensor, batch_size_hint: Optional[int]) -> int:
+        if batch_size_hint is not None:
+            for dim, size in enumerate(tensor.shape):
+                if int(size) == int(batch_size_hint):
+                    return dim
+        if tensor.ndim == 0:
+            raise ValueError("State tensor must have at least one dimension.")
+        return 0
 
+    def _quantize_or_reuse_state(
+        self,
+        layer_name: str,
+        module: nn.Module,
+        state: torch.Tensor,
+    ) -> None:
+        batch_size_hint = None
+        prev = self._cache.get(layer_name)
+        if prev is not None:
+            batch_size_hint = prev.shape[0] if prev.ndim > 0 else None
+        batch_dim = self._infer_batch_dim(state, batch_size_hint)
+        q_current = _quantize_tensor_symmetric_per_tensor(state, self.state_bits)
+        batch_size = int(q_current.shape[batch_dim])
         self._total_assignments += batch_size
         self._layer_assignments[layer_name] += batch_size
 
@@ -93,37 +107,42 @@ class _StateWriteAwareQuantizer:
             or layer_name not in self._cache
             or self.relative_delta_threshold < 0.0
         ):
-            self._cache[layer_name] = q_current.detach()
+            cached = q_current.detach().movedim(batch_dim, 0).contiguous()
+            self._cache[layer_name] = cached
+            module.v = q_current
             self._total_writes += batch_size
             self._layer_writes[layer_name] += batch_size
-            return q_current
+            return
 
         prev = self._cache[layer_name]
-        flat_current = q_current.movedim(batch_dim, 0).reshape(batch_size, -1)
-        flat_prev = prev.movedim(batch_dim, 0).reshape(batch_size, -1)
+        current_batch_first = q_current.movedim(batch_dim, 0).contiguous()
+        flat_current = current_batch_first.reshape(batch_size, -1)
+        flat_prev = prev.reshape(batch_size, -1)
         delta = (flat_current - flat_prev).abs().mean(dim=1)
         denom = flat_prev.abs().mean(dim=1).clamp_min(1e-6)
         relative_delta = delta / denom
         write_mask = relative_delta > self.relative_delta_threshold
 
         if bool(write_mask.all()):
-            self._cache[layer_name] = q_current.detach()
+            self._cache[layer_name] = current_batch_first.detach()
+            module.v = q_current
             self._total_writes += batch_size
             self._layer_writes[layer_name] += batch_size
-            return q_current
+            return
 
         if not bool(write_mask.any()):
-            return prev
+            module.v = prev.movedim(0, batch_dim).contiguous()
+            return
 
         out = prev.clone()
         indices = write_mask.nonzero(as_tuple=False).flatten()
-        current_subset = q_current.index_select(batch_dim, indices)
-        out.index_copy_(batch_dim, indices, current_subset)
+        current_subset = current_batch_first.index_select(0, indices)
+        out.index_copy_(0, indices, current_subset)
         self._cache[layer_name] = out.detach()
+        module.v = out.movedim(0, batch_dim).contiguous()
         write_count = int(write_mask.sum().item())
         self._total_writes += write_count
         self._layer_writes[layer_name] += write_count
-        return out
 
     def summary(self) -> dict:
         write_ratio = self._total_writes / float(max(self._total_assignments, 1))
@@ -528,9 +547,9 @@ def run_state_write_aware_quantization_analysis(
         "final_state_write_aware_acc": write_aware_metrics["test_acc"],
         "state_write_aware_write_ratio": write_aware_metrics["write_ratio"],
         "state_quantization_note": (
-            "This experiment approximates state-write savings by quantizing continuous inputs "
-            "to each LIF node and conditionally reusing the previous quantized value, "
-            "rather than modifying the neuron's internal membrane update."
+            "This experiment approximates state-write savings by quantizing and conditionally "
+            "reusing each LIF node's internal state proxy (module.v) after every step, "
+            "rather than comparing only the node input."
         ),
         "outputs": {
             "state_cost_proxy_csv": str(state_proxy_csv),
