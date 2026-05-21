@@ -1,9 +1,9 @@
-# `difficulty_adaptive_state_precision_vgg16/runner.py`
+# `difficulty_adaptive_state_precision_vgg16/runner_two_stage.py`
 
 ## 作用
 
-- 实现 CIFAR-10 `baseline_vgg16` 上的 **Difficulty-Adaptive State Precision** 原型实验。
-- 保持与旧的 `baseline_vgg16` 方法目录分离。
+- 保留 CIFAR-10 `baseline_vgg16` 上当前默认的 **two-stage** 实现。
+- 内容与 `runner.py` 一致，便于和 `runner_samplewise.py` 明确区分。
 - 使用与 `weight_state_mixed` 一致的 proxy 口径：量化每个 LIF 节点的输入，而不是直接改神经元内部膜电位更新。
 
 ## 方法结构
@@ -15,7 +15,7 @@
 - `FixedStateLowB*`
 - `AdaptiveStateB*to*`
 
-其中 adaptive 策略现在采用 **batch-wise two-stage mode**：
+其中 adaptive 策略采用 **batch-wise two-stage mode**：
 
 1. 前 `warmup_steps` 步全部使用高 state bits
 2. 根据前若干步的累计输出估计样本难度

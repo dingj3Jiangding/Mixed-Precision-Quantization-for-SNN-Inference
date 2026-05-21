@@ -1,13 +1,13 @@
-# `difficulty_adaptive_state_precision_nmnist/runner.py`
+# `difficulty_adaptive_state_precision_nmnist/runner_two_stage.py`
 
 ## 作用
 
-- 实现 N-MNIST 上的 **Difficulty-Adaptive State Precision** 原型实验。
-- 复用 N-MNIST 的现有数据加载和模型定义，但不混入旧方法目录。
+- 保留 N-MNIST 上当前默认的 **two-stage** 实现。
+- 内容与 `runner.py` 一致，便于显式区分 two-stage 与 sample-wise 两套版本。
 
 ## 方法口径
 
-与 CIFAR-10 版本一致，adaptive 路径采用 **batch-wise two-stage mode**：
+adaptive 路径采用 **batch-wise two-stage mode**：
 
 - 前若干 timestep 用高 state bits 做 warmup
 - 依据 early confidence / margin 判断样本难度
@@ -15,7 +15,7 @@
 - easy group 用低 bits
 - hard group 用高 bits
 
-这是一个 state-side proxy experiment，不直接改神经元内部状态更新方程。
+这是当前建议使用的版本。它仍然是一个 state-side proxy experiment，不直接改神经元内部状态更新方程。
 
 ## 输出
 
