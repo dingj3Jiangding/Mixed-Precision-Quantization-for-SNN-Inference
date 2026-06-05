@@ -19,6 +19,7 @@ __pycache__/
 # Datasets
 baseline/data/
 baseline_nmnist/data/
+baseline_cifar10_dvs/data/
 
 # Large archives
 *.zip
