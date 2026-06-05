@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import random
 from pathlib import Path
 from typing import Tuple
+import urllib.error
+import urllib.request
 
 import numpy as np
 import torch
@@ -11,10 +14,93 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from .config import BaselineCIFAR10DVSConfig
 
 
+_CIFAR10_DVS_RESOURCES = [
+    ("airplane.zip", "7712788", "0afd5c4bf9ae06af762a77b180354fdd"),
+    ("automobile.zip", "7712791", "8438dfeba3bc970c94962d995b1b9bdd"),
+    ("bird.zip", "7712794", "a9c207c91c55b9dc2002dc21c684d785"),
+    ("cat.zip", "7712812", "52c63c677c2b15fa5146a8daf4d56687"),
+    ("deer.zip", "7712815", "b6bf21f6c04d21ba4e23fc3e36c8a4a3"),
+    ("dog.zip", "7712818", "f379ebdf6703d16e0a690782e62639c3"),
+    ("frog.zip", "7712842", "cad6ed91214b1c7388a5f6ee56d08803"),
+    ("horse.zip", "7712851", "e7cbbf77bec584ffbf913f00e682782a"),
+    ("ship.zip", "7712836", "41c7bd7d6b251be82557c6cce9a7d5c9"),
+    ("truck.zip", "7712839", "89f3922fd147d9aeff89e76a2b0b70a7"),
+]
+
+
 def _seed_worker(worker_id: int) -> None:
     worker_seed = torch.initial_seed() % 2**32
     random.seed(worker_seed + worker_id)
     np.random.seed(worker_seed + worker_id)
+
+
+def _file_md5(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _download_file_with_headers(url: str, path: Path) -> None:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+            )
+        },
+    )
+    tmp_path = path.with_suffix(path.suffix + ".part")
+    with urllib.request.urlopen(request, timeout=120) as response, tmp_path.open("wb") as f:
+        while True:
+            chunk = response.read(1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+    tmp_path.replace(path)
+
+
+def _ensure_cifar10_dvs_archives(cfg: BaselineCIFAR10DVSConfig) -> None:
+    if not cfg.dataset_download:
+        return
+
+    download_root = Path(cfg.data_root) / "download"
+    download_root.mkdir(parents=True, exist_ok=True)
+
+    for filename, file_id, md5 in _CIFAR10_DVS_RESOURCES:
+        path = download_root / filename
+        if path.exists() and _file_md5(path) == md5:
+            continue
+        if path.exists():
+            path.unlink()
+
+        urls = [
+            f"https://figshare.com/ndownloader/files/{file_id}",
+            f"https://ndownloader.figshare.com/files/{file_id}",
+        ]
+        errors: list[str] = []
+        for url in urls:
+            try:
+                print(f"Download [{filename}] from [{url}] to [{path}]")
+                _download_file_with_headers(url, path)
+                if _file_md5(path) != md5:
+                    errors.append(f"{url}: downloaded file md5 mismatch")
+                    path.unlink(missing_ok=True)
+                    continue
+                break
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+                errors.append(f"{url}: {exc}")
+                path.unlink(missing_ok=True)
+        else:
+            detail = "\n".join(errors)
+            raise RuntimeError(
+                f"Unable to download CIFAR10-DVS archive {filename}.\n"
+                f"Tried:\n{detail}\n"
+                "You can also download CIFAR10-DVS manually and place the class zip files "
+                f"under {download_root}."
+            )
 
 
 def _ensure_tensor_frames(frames) -> torch.Tensor:
@@ -191,6 +277,7 @@ def _build_tebn_split_from_events(cfg: BaselineCIFAR10DVSConfig) -> Tuple[Datase
 def build_cifar10_dvs_loaders(cfg: BaselineCIFAR10DVSConfig, device: str) -> tuple[DataLoader, DataLoader]:
     data_root = Path(cfg.data_root)
     data_root.mkdir(parents=True, exist_ok=True)
+    _ensure_cifar10_dvs_archives(cfg)
 
     try:
         train_set, test_set = _build_tebn_split(cfg)
